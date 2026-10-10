@@ -47,6 +47,9 @@ export default function Home() {
     const responseList = (waveResponses || []) as WaveResponse[]
     setResponses(responseList)
 
+    const myResponse = responseList.find(r => r.member_id === memberId) || null
+    setUserResponse(myResponse)
+
     // Determine state & Auto-Transitions
     if (currentWave.status === 'active') {
       if (responseList.length >= TOTAL_MEMBERS) {
