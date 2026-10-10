@@ -97,6 +97,15 @@ export default function AdminPage() {
     await updateWaveStatus(wave.id, 'cooldown', { next_wave_at: next })
   }
 
+  const endCooldownNow = async (wave: WaveWithResponses) => {
+    // Set next_wave_at to past so it ends immediately
+    await updateWaveStatus(wave.id, 'cooldown', { next_wave_at: new Date(Date.now() - 1000).toISOString() })
+  }
+
+  const activateWave = async (wave: WaveWithResponses) => {
+    await updateWaveStatus(wave.id, 'active')
+  }
+
   const deleteWave = async (waveId: string) => {
     if (!confirm('Welle löschen?')) return
     await supabase.from('waves').delete().eq('id', waveId)
@@ -283,6 +292,26 @@ export default function AdminPage() {
                   >
                     Cooldown starten →
                   </button>
+                )}
+                {w.status === 'cooldown' && (
+                  <>
+                    <button
+                      onClick={() => endCooldownNow(w)}
+                      disabled={loading}
+                      className="text-xs tracking-[0.2em] uppercase hover:opacity-70 transition-opacity disabled:opacity-30"
+                      style={{ color: '#c8a065' }}
+                    >
+                      Cooldown sofort beenden ⚡
+                    </button>
+                    <button
+                      onClick={() => activateWave(w)}
+                      disabled={loading}
+                      className="text-xs tracking-[0.2em] uppercase hover:opacity-70 transition-opacity disabled:opacity-30"
+                      style={{ color: '#c8a065' }}
+                    >
+                      Wieder aktiv schalten ↺
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={() => deleteWave(w.id)}
