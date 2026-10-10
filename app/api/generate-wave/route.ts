@@ -7,14 +7,31 @@ const geminiApiKey = process.env.GEMINI_API_KEY!
 
 const supabase = createClient(supabaseUrl, supabaseKey)
 
+// Großer, abwechslungsreicher Pool an kuratierten Fragen (damit NIE eine Wiederholung entsteht)
+const CURATED_PROMPTS = [
+  { prompt: 'Was war der unscheinbarste Glücksmoment deines heutigen Tages?', prompt_type: 'text', options: null },
+  { prompt: 'Wenn du den heutigen Tag als Wetterbericht beschreiben müsstest – wie lautete er?', prompt_type: 'text', options: null },
+  { prompt: 'Wofür bist du heute dankbar, das man nicht kaufen kann?', prompt_type: 'text', options: null },
+  { prompt: 'Entscheidung: Eher ein Abend allein mit Musik/Buch oder ein langer Abend am Lagerfeuer?', prompt_type: 'choice', options: ['Allein mit Musik / Buch', 'Lagerfeuer mit Freunden'] },
+  { prompt: 'Was hat dich heute zum Schmunzeln gebracht?', prompt_type: 'text', options: null },
+  { prompt: 'Ein Gedanke, der dir heute nicht aus dem Kopf ging?', prompt_type: 'text', options: null },
+  { prompt: 'Entscheidung: Spontaner Roadtrip ins Blaue oder ein perfekt geplanter Wochenendurlaub?', prompt_type: 'choice', options: ['Spontaner Roadtrip', 'Perfekt geplanter Urlaub'] },
+  { prompt: 'Welches Lied passt heute am besten zu deiner Stimmung?', prompt_type: 'text', options: null },
+  { prompt: 'Was war die wichtigste Erkenntnis, die du heute mitnimmst?', prompt_type: 'text', options: null },
+  { prompt: 'Entscheidung: Sonnenaufgang am Meer oder Sternenhimmel in den Bergen?', prompt_type: 'choice', options: ['Sonnenaufgang am Meer', 'Sternenhimmel in den Bergen'] },
+  { prompt: 'Was möchtest du morgen bewusst anders machen als heute?', prompt_type: 'text', options: null },
+  { prompt: 'Ein Wort, das deinen aktuellen Geisteszustand am treffendsten beschreibt?', prompt_type: 'text', options: null },
+  { prompt: 'Welche kleine Gewohnheit hat dir heute gutgetan?', prompt_type: 'text', options: null },
+]
+
 export async function POST() {
   try {
-    // 1. Hole vorherige Wellen und Antworten als Kontext für die KI
+    // 1. Vorherige Wellen holen
     const { data: previousWaves } = await supabase
       .from('waves')
       .select('number, prompt, responses(content)')
       .order('number', { ascending: false })
-      .limit(3)
+      .limit(5)
 
     const nextNumber = previousWaves && previousWaves.length > 0
       ? Math.max(...previousWaves.map(w => w.number)) + 1
@@ -33,53 +50,59 @@ Die Nutzer sind 4 gute Freunde, die in einer gemeinsamen IT-Umschulung lernen, s
 Deine Aufgabe ist es, die NÄCHSTE "Welle" (einen Prompt/eine Frage/eine kleine Reflexionsaufgabe) zu generieren.
 
 Regeln:
-1. Der Ton soll minimalistisch, warmherzig, poetisch, aber geerdet sein (kein Kitsch, kein Tech-Geschwätz).
+1. Der Ton soll minimalistisch, warmherzig, poetisch, aber geerdet sein (kein Kitsch).
 2. Es soll die Menschen miteinander verbinden, zum Nachdenken oder Schmunzeln anregen.
 3. Beziehe dich subtil auf frühere Stimmungen oder Antworten der Gruppe, falls vorhanden.
-4. Manchmal offene Textfragen (z.B. Beobachtungen im Alltag, Momente, Gedanken), manchmal eine überraschende A/B-Entscheidung.
+4. Manchmal offene Textfragen, manchmal eine überraschende A/B-Entscheidung ("choice").
 5. Halte die Frage kurz und prägnant (maximal 1-2 Sätze).
-6. Gib AUSSCHLIESSLICH ein valides JSON-Objekt im folgenden Format zurück:
+6. Gib AUSSCHLIESSLICH ein valides JSON-Objekt zurück:
 {
   "prompt": "Deine Frage hier",
-  "prompt_type": "text", // oder "choice"
-  "options": null // oder ["Option A", "Option B"] falls prompt_type "choice" ist
+  "prompt_type": "text",
+  "options": null
 }`
 
-    // Gemini API Request (gemini-3.8-flash)
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${geminiApiKey}`
+    let parsed: any = null
 
-    const response = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: `${systemPrompt}\n\n${contextText}\n\nGeneriere jetzt Welle ${nextNumber}. Antworte nur mit reinem JSON.` }
+    // 2. Primär: Gemini 3.5-flash-lite aufrufen (hat sehr hohes Quota)
+    if (geminiApiKey) {
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiApiKey}`
+        const response = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: `${systemPrompt}\n\n${contextText}\n\nGeneriere jetzt Welle ${nextNumber}. Antworte nur mit reinem JSON.` }
+                ]
+              }
             ]
-          }
-        ]
-      })
-    })
+          })
+        })
 
-    const data = await response.json()
-    let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-
-    // JSON sauber parsen
-    rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim()
-    
-    let parsed
-    try {
-      parsed = JSON.parse(rawText)
-    } catch {
-      parsed = {
-        prompt: 'Was hat dich heute für einen kurzen Augenblick innehalten lassen?',
-        prompt_type: 'text',
-        options: null
+        if (response.ok) {
+          const data = await response.json()
+          let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+          rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim()
+          parsed = JSON.parse(rawText)
+        }
+      } catch (e) {
+        console.warn('Gemini generation failed, falling back to smart curated pool:', e)
       }
     }
 
-    // Neue Welle in Supabase speichern
+    // 3. Intelligenter Pool-Fallback: Wähle eine Frage, die noch NIE gestellt wurde!
+    if (!parsed || !parsed.prompt) {
+      const pastPrompts = (previousWaves || []).map(w => w.prompt)
+      const available = CURATED_PROMPTS.filter(p => !pastPrompts.includes(p.prompt))
+      parsed = available.length > 0
+        ? available[Math.floor(Math.random() * available.length)]
+        : CURATED_PROMPTS[nextNumber % CURATED_PROMPTS.length]
+    }
+
+    // 4. Neue Welle in Supabase speichern
     const { data: newWave, error: insertError } = await supabase
       .from('waves')
       .insert({
@@ -92,13 +115,11 @@ Regeln:
       .select()
       .single()
 
-    if (insertError) {
-      throw insertError
-    }
+    if (insertError) throw insertError
 
     return NextResponse.json({ success: true, wave: newWave })
   } catch (error: any) {
-    console.error('Error generating wave:', error)
+    console.error('Error in generate-wave:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
