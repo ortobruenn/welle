@@ -10,7 +10,7 @@ import WaitingScreen from '@/components/WaitingScreen'
 import RevealScreen from '@/components/RevealScreen'
 import CooldownScreen from '@/components/CooldownScreen'
 
-type AppState = 'loading' | 'mystery' | 'join' | 'wave' | 'waiting' | 'reveal' | 'cooldown'
+type AppState = 'loading' | 'mystery' | 'join' | 'wave' | 'waiting' | 'reveal' | 'waiting_cooldown' | 'cooldown'
 
 const TOTAL_MEMBERS = Number(process.env.NEXT_PUBLIC_TOTAL_MEMBERS) || 4
 
@@ -53,7 +53,7 @@ export default function Home() {
     // Determine state & Auto-Transitions
     if (currentWave.status === 'active') {
       if (responseList.length >= TOTAL_MEMBERS) {
-        // Alle haben geantwortet -> Auto-Reveal starten!
+        // Alle 4 haben geantwortet -> Welle geht in den Reveal-Status!
         await supabase
           .from('waves')
           .update({ status: 'reveal', revealed_at: new Date().toISOString() })
@@ -63,28 +63,65 @@ export default function Home() {
         setAppState(myResponse ? 'waiting' : 'wave')
       }
     } else if (currentWave.status === 'reveal') {
-      setAppState('reveal')
-    } else if (currentWave.status === 'cooldown') {
-      // Wenn der Cooldown abgelaufen ist -> Automatisch nächste Welle per Gemini generieren!
-      if (currentWave.next_wave_at && new Date(currentWave.next_wave_at).getTime() <= Date.now()) {
-        try {
-          await fetch('/api/generate-wave', { method: 'POST' })
-          // Danach frisch laden
-          const { data: updatedWaves } = await supabase
+      // Prüfen, ob DIESER Nutzer den Reveal schon gesehen und bestätigt hat
+      const { data: seenRecords } = await supabase
+        .from('reveals_seen')
+        .select('member_id')
+        .eq('wave_id', currentWave.id)
+
+      const seenList = (seenRecords || []).map(r => r.member_id)
+      const hasSeen = seenList.includes(memberId)
+
+      if (!hasSeen) {
+        // Nutzer hat es noch nicht gesehen -> Reveal anzeigen!
+        setAppState('reveal')
+      } else {
+        // Dieser Nutzer hat es gesehen, aber warten noch andere?
+        if (seenList.length >= TOTAL_MEMBERS) {
+          // ALLE 4 haben es gesehen! Cooldown für alle synchron starten!
+          const nextWaveDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          await supabase
             .from('waves')
-            .select('*')
-            .order('number', { ascending: false })
-            .limit(1)
-          if (updatedWaves && updatedWaves.length > 0) {
-            setWave(updatedWaves[0] as Wave)
-            setAppState('wave')
-            return
-          }
-        } catch (e) {
-          console.error('Auto next wave error:', e)
+            .update({ status: 'cooldown', next_wave_at: nextWaveDate })
+            .eq('id', currentWave.id)
+          setAppState('cooldown')
+        } else {
+          // Dieser Nutzer wartet, bis die anderen es auch gelesen haben
+          setAppState('waiting_cooldown')
         }
       }
-      setAppState('cooldown')
+    } else if (currentWave.status === 'cooldown') {
+      // Prüfen, ob der Nutzer vor dem Cooldown den Reveal überhaupt je gesehen hat
+      const { data: seenRecords } = await supabase
+        .from('reveals_seen')
+        .select('member_id')
+        .eq('wave_id', currentWave.id)
+        .eq('member_id', memberId)
+
+      if (!seenRecords || seenRecords.length === 0) {
+        // Hat es verpasst während offline -> ZUERST Enthüllung nachholen!
+        setAppState('reveal')
+      } else {
+        // Wenn der gemeinsame Cooldown abgelaufen ist -> Automatisch nächste Welle per Gemini
+        if (currentWave.next_wave_at && new Date(currentWave.next_wave_at).getTime() <= Date.now()) {
+          try {
+            await fetch('/api/generate-wave', { method: 'POST' })
+            const { data: updatedWaves } = await supabase
+              .from('waves')
+              .select('*')
+              .order('number', { ascending: false })
+              .limit(1)
+            if (updatedWaves && updatedWaves.length > 0) {
+              setWave(updatedWaves[0] as Wave)
+              setAppState('wave')
+              return
+            }
+          } catch (e) {
+            console.error('Auto next wave error:', e)
+          }
+        }
+        setAppState('cooldown')
+      }
     }
   }, [])
 
@@ -131,6 +168,11 @@ export default function Home() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'members' },
         () => fetchMembers()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'reveals_seen' },
+        () => loadAppState(member.id)
       )
       .subscribe()
 
@@ -193,14 +235,29 @@ export default function Home() {
         responses={responses}
         members={members}
         onComplete={async () => {
-          const nextWaveDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          if (!member) return
+          // Speichere, dass dieser Nutzer den Reveal gesehen hat
           await supabase
-            .from('waves')
-            .update({ status: 'cooldown', next_wave_at: nextWaveDate })
-            .eq('id', wave.id)
-          setAppState('cooldown')
+            .from('reveals_seen')
+            .upsert({ wave_id: wave.id, member_id: member.id })
+
+          await loadAppState(member.id)
         }}
       />
+    )
+  }
+
+  if (appState === 'waiting_cooldown') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-8" style={{ background: '#0a0a0a' }}>
+        <div className="font-display text-5xl font-light mb-8 animate-breathe" style={{ color: '#c8a065' }}>∿</div>
+        <p className="text-sm tracking-[0.2em] uppercase text-center mb-3" style={{ color: '#e8e4de' }}>
+          Du hast die Welle gesehen
+        </p>
+        <p className="text-xs tracking-[0.25em] uppercase text-center" style={{ color: '#6b6560' }}>
+          Die Ruhephase beginnt, sobald alle die Antworten gelesen haben
+        </p>
+      </div>
     )
   }
 
