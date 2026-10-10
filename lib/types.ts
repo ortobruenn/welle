@@ -4,11 +4,21 @@ export interface Member {
   created_at: string
 }
 
+export type WavePromptType = 
+  | 'text' 
+  | 'choice' 
+  | 'draw' 
+  | 'photo' 
+  | 'pulse' 
+  | 'silence' 
+  | 'chain' 
+  | 'guess'
+
 export interface Wave {
   id: string
   number: number
   prompt: string
-  prompt_type: 'text' | 'choice'
+  prompt_type: WavePromptType
   options: string[] | null
   status: 'active' | 'reveal' | 'cooldown'
   created_at: string
@@ -20,7 +30,7 @@ export interface WaveResponse {
   id: string
   wave_id: string
   member_id: string
-  content: string
+  content: string // Text, Bild-DataURL, Touch-Metadaten oder Wahl
   created_at: string
   members?: Member
 }

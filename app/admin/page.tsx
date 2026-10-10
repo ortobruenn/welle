@@ -20,7 +20,7 @@ export default function AdminPage() {
 
   // New wave form
   const [newPrompt, setNewPrompt] = useState('')
-  const [newType, setNewType] = useState<'text' | 'choice'>('text')
+  const [newType, setNewType] = useState<Wave['prompt_type']>('text')
   const [newOptions, setNewOptions] = useState('')
 
   const fetchData = useCallback(async () => {
@@ -197,20 +197,28 @@ export default function AdminPage() {
           Neue Welle
         </h2>
         <div className="flex flex-col gap-4 p-5 border" style={{ borderColor: '#1e1e1e', background: '#0d0d0d', borderRadius: 2 }}>
-          <div className="flex gap-3">
-            {(['text', 'choice'] as const).map(t => (
+          <div className="flex gap-2 flex-wrap">
+            {([
+              { id: 'text', label: 'Text' },
+              { id: 'choice', label: 'Auswahl' },
+              { id: 'draw', label: 'Zeichnen 🎨' },
+              { id: 'photo', label: 'Foto 📷' },
+              { id: 'pulse', label: 'Puls / Touch ∿' },
+              { id: 'silence', label: 'Stille 🧘' },
+              { id: 'chain', label: 'Wort-Kette ⛓️' },
+            ] as const).map(t => (
               <button
-                key={t}
-                onClick={() => setNewType(t)}
-                className="px-4 py-2 text-xs tracking-widest uppercase border transition-all"
+                key={t.id}
+                onClick={() => setNewType(t.id as any)}
+                className="px-3 py-1.5 text-xs tracking-wider uppercase border transition-all"
                 style={{
-                  borderColor: newType === t ? '#c8a065' : '#1e1e1e',
-                  color: newType === t ? '#c8a065' : '#6b6560',
-                  background: newType === t ? 'rgba(200,160,101,0.08)' : 'transparent',
+                  borderColor: newType === t.id ? '#c8a065' : '#1e1e1e',
+                  color: newType === t.id ? '#c8a065' : '#6b6560',
+                  background: newType === t.id ? 'rgba(200,160,101,0.08)' : 'transparent',
                   borderRadius: 2,
                 }}
               >
-                {t === 'text' ? 'Text' : 'Auswahl'}
+                {t.label}
               </button>
             ))}
           </div>

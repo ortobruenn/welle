@@ -7,21 +7,37 @@ const geminiApiKey = process.env.GEMINI_API_KEY!
 
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-// Großer, abwechslungsreicher Pool an kuratierten Fragen (damit NIE eine Wiederholung entsteht)
+// Bunter, vielseitiger Pool aus allen Erlebnis-Formaten
 const CURATED_PROMPTS = [
+  // ZEICHNEN 🎨
+  { prompt: 'Zeichne mit einem Strich ein Symbol, das deinen heutigen Tag einfängt.', prompt_type: 'draw', options: null },
+  { prompt: 'Zeichne blind ein Tier mit drei Beinen.', prompt_type: 'draw', options: null },
+  { prompt: 'Skizziere kurz die Form einer Wolke, die heute über dir sein könnte.', prompt_type: 'draw', options: null },
+  
+  // FOTO & TEXTUR 📷
+  { prompt: 'Finde etwas in deiner unmittelbaren Umgebung, das rot oder rostig ist.', prompt_type: 'photo', options: null },
+  { prompt: 'Ein Blick aus deinem nächsten Fenster – zeig uns den Himmel über deiner Stadt.', prompt_type: 'photo', options: null },
+  { prompt: 'Fotografiere eine Textur (Holz, Beton, Stoff, Kaffeeschaum), die du heute berührt hast.', prompt_type: 'photo', options: null },
+
+  // PULS & RESONANZ ∿
+  { prompt: 'Schließe für einen Atemzug die Augen und halte das Wellen-Symbol berührt.', prompt_type: 'pulse', options: null },
+  { prompt: 'Ein gemeinsamer Puls über die Distanz. Berühre das Zentrum für 10 Sekunden.', prompt_type: 'pulse', options: null },
+
+  // STILLE & ACHTSAMKEIT 🧘
+  { prompt: 'Nimm dir 20 Sekunden vollkommene Stille. Lass das Rauschen der Welt kurz verblassen.', prompt_type: 'silence', options: null },
+
+  // WORT-KETTE ⛓️
+  { prompt: 'Kettenreaktion: Schreibe genau EIN einziges Wort für das gemeinsame Satz-Mosaik.', prompt_type: 'chain', options: null },
+
+  // DILEMMA & ENTSCHEIDUNG 🎲
+  { prompt: 'Dilemma: Eher ein Jahr lang jeden Tag derselbe Song oder nie wieder Musik hören?', prompt_type: 'choice', options: ['Jeden Tag derselbe Song', 'Nie wieder Musik'] },
+  { prompt: 'Entscheidung: Spontaner Nachtspaziergang durch die Stadt oder am Kamin einschlafen?', prompt_type: 'choice', options: ['Nachtspaziergang', 'Kaminfeuer'] },
+  { prompt: 'Entscheidung: Zeitreisen 100 Jahre in die Vergangenheit oder 100 Jahre in die Zukunft?', prompt_type: 'choice', options: ['100 Jahre Vergangenheit', '100 Jahre Zukunft'] },
+
+  // TIEFSINN & GEDANKEN ✍️
   { prompt: 'Was war der unscheinbarste Glücksmoment deines heutigen Tages?', prompt_type: 'text', options: null },
-  { prompt: 'Wenn du den heutigen Tag als Wetterbericht beschreiben müsstest – wie lautete er?', prompt_type: 'text', options: null },
   { prompt: 'Wofür bist du heute dankbar, das man nicht kaufen kann?', prompt_type: 'text', options: null },
-  { prompt: 'Entscheidung: Eher ein Abend allein mit Musik/Buch oder ein langer Abend am Lagerfeuer?', prompt_type: 'choice', options: ['Allein mit Musik / Buch', 'Lagerfeuer mit Freunden'] },
-  { prompt: 'Was hat dich heute zum Schmunzeln gebracht?', prompt_type: 'text', options: null },
-  { prompt: 'Ein Gedanke, der dir heute nicht aus dem Kopf ging?', prompt_type: 'text', options: null },
-  { prompt: 'Entscheidung: Spontaner Roadtrip ins Blaue oder ein perfekt geplanter Wochenendurlaub?', prompt_type: 'choice', options: ['Spontaner Roadtrip', 'Perfekt geplanter Urlaub'] },
-  { prompt: 'Welches Lied passt heute am besten zu deiner Stimmung?', prompt_type: 'text', options: null },
-  { prompt: 'Was war die wichtigste Erkenntnis, die du heute mitnimmst?', prompt_type: 'text', options: null },
-  { prompt: 'Entscheidung: Sonnenaufgang am Meer oder Sternenhimmel in den Bergen?', prompt_type: 'choice', options: ['Sonnenaufgang am Meer', 'Sternenhimmel in den Bergen'] },
-  { prompt: 'Was möchtest du morgen bewusst anders machen als heute?', prompt_type: 'text', options: null },
-  { prompt: 'Ein Wort, das deinen aktuellen Geisteszustand am treffendsten beschreibt?', prompt_type: 'text', options: null },
-  { prompt: 'Welche kleine Gewohnheit hat dir heute gutgetan?', prompt_type: 'text', options: null },
+  { prompt: 'Was hat dich heute für einen Augenblick zum Schmunzeln gebracht?', prompt_type: 'text', options: null },
 ]
 
 export async function POST() {

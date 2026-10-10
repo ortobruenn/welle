@@ -75,9 +75,19 @@ export default function WaitingScreen({ wave, responses, totalMembers, userRespo
           <p className="text-xs tracking-[0.2em] uppercase mb-3" style={{ color: '#6b6560' }}>
             Deine Antwort
           </p>
-          <p className="text-base leading-relaxed" style={{ color: '#e8e4de' }}>
-            {userResponse.content}
-          </p>
+          {userResponse.content.startsWith('data:image/') ? (
+            <div className="w-full aspect-square rounded overflow-hidden border border-[#2a2a2a] my-1">
+              <img
+                src={userResponse.content}
+                alt="Deine Kreation"
+                className="w-full h-full object-contain bg-[#0a0a0a]"
+              />
+            </div>
+          ) : (
+            <p className="text-base leading-relaxed" style={{ color: '#e8e4de' }}>
+              {userResponse.content}
+            </p>
+          )}
         </div>
       )}
 

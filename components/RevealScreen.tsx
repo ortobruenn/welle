@@ -71,12 +71,22 @@ export default function RevealScreen({ wave, responses, members, onComplete }: P
             >
               {getMemberName(response.member_id)}
             </p>
-            <p
-              className="text-lg leading-relaxed font-display font-light"
-              style={{ color: '#e8e4de' }}
-            >
-              {response.content}
-            </p>
+            {response.content.startsWith('data:image/') ? (
+              <div className="w-full max-w-[280px] aspect-square rounded overflow-hidden border border-[#2a2a2a] my-2">
+                <img
+                  src={response.content}
+                  alt="Kreation"
+                  className="w-full h-full object-contain bg-[#0a0a0a]"
+                />
+              </div>
+            ) : (
+              <p
+                className="text-lg leading-relaxed font-display font-light"
+                style={{ color: '#e8e4de' }}
+              >
+                {response.content}
+              </p>
+            )}
           </div>
         ))}
       </div>
