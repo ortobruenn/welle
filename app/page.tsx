@@ -134,17 +134,34 @@ export default function Home() {
 
   useEffect(() => {
     // Check existing session
-    const storedId = localStorage.getItem('welle_member_id')
-    const storedName = localStorage.getItem('welle_member_name')
+    const initSession = async () => {
+      const storedId = localStorage.getItem('welle_member_id')
+      const storedName = localStorage.getItem('welle_member_name')
 
-    if (storedId && storedName) {
-      const memberData: Member = { id: storedId, name: storedName, created_at: '' }
-      setMember(memberData)
-      fetchMembers()
-      loadAppState(storedId)
-    } else {
+      if (storedId && storedName) {
+        // Prüfen, ob der Nutzer in der Datenbank noch existiert (oder im Admin gelöscht wurde)
+        const { data: existing } = await supabase
+          .from('members')
+          .select('id, name')
+          .eq('id', storedId)
+          .maybeSingle()
+
+        if (existing) {
+          const memberData: Member = { id: storedId, name: storedName, created_at: '' }
+          setMember(memberData)
+          fetchMembers()
+          loadAppState(storedId)
+          return
+        } else {
+          // Nutzer wurde gelöscht -> Session aufräumen
+          localStorage.removeItem('welle_member_id')
+          localStorage.removeItem('welle_member_name')
+        }
+      }
       setTimeout(() => setAppState('mystery'), 400)
     }
+
+    initSession()
   }, [loadAppState, fetchMembers])
 
   // Real-time subscriptions

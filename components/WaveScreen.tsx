@@ -18,8 +18,6 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
   const [selected, setSelected] = useState<string | null>(null)
   const [mediaContent, setMediaContent] = useState<string>('')
   const [loading, setLoading] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-
   const handleSubmit = async (overrideContent?: string) => {
     let content = overrideContent
 
@@ -32,22 +30,7 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
     if (!content) return
     setLoading(true)
     await onSubmit(content)
-    setSubmitted(true)
     setLoading(false)
-  }
-
-  if (submitted) {
-    return (
-      <div
-        className="min-h-screen flex flex-col items-center justify-center"
-        style={{ background: '#0a0a0a' }}
-      >
-        <div className="animate-scale-in text-4xl mb-6" style={{ color: '#c8a065' }}>∿</div>
-        <p className="text-sm tracking-[0.2em] uppercase animate-fade-up" style={{ color: '#6b6560' }}>
-          erfasst
-        </p>
-      </div>
-    )
   }
 
   return (
