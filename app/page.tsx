@@ -12,7 +12,9 @@ import CooldownScreen from '@/components/CooldownScreen'
 
 type AppState = 'loading' | 'mystery' | 'join' | 'wave' | 'waiting' | 'reveal' | 'waiting_cooldown' | 'cooldown'
 
-const TOTAL_MEMBERS = Number(process.env.NEXT_PUBLIC_TOTAL_MEMBERS) || 4
+// TEST-MODUS: 2 Personen, Cooldown 10 Sekunden (stellen wir später zurück auf 4 und 24h)
+const TOTAL_MEMBERS = 2
+const COOLDOWN_MS = 10 * 1000
 
 export default function Home() {
   const [appState, setAppState] = useState<AppState>('loading')
@@ -78,8 +80,8 @@ export default function Home() {
       } else {
         // Dieser Nutzer hat es gesehen, aber warten noch andere?
         if (seenList.length >= TOTAL_MEMBERS) {
-          // ALLE 4 haben es gesehen! Cooldown für alle synchron starten!
-          const nextWaveDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          // Beide haben es gesehen! Cooldown synchron starten (10 Sekunden)
+          const nextWaveDate = new Date(Date.now() + COOLDOWN_MS).toISOString()
           await supabase
             .from('waves')
             .update({ status: 'cooldown', next_wave_at: nextWaveDate })
