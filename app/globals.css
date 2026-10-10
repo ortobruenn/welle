@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Space Grotesk', system-ui, sans-serif;
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --color-bg: #0a0a0a;
+  --color-surface: #141414;
+  --color-border: #1e1e1e;
+  --color-accent: #c8a065;
+  --color-accent-muted: rgba(200, 160, 101, 0.15);
+  --color-text: #e8e4de;
+  --color-dim: #6b6560;
+}
+
+@keyframes ripple {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(5); opacity: 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes revealCard {
+  from { opacity: 0; transform: translateY(48px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes scaleIn {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+.animate-ripple { animation: ripple 3s ease-out infinite; }
+.animate-ripple-2 { animation: ripple 3s ease-out 1s infinite; }
+.animate-ripple-3 { animation: ripple 3s ease-out 2s infinite; }
+.animate-float { animation: float 5s ease-in-out infinite; }
+.animate-fade-up { animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-fade-in { animation: fadeIn 0.6s ease both; }
+.animate-reveal-card { animation: revealCard 0.9s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-scale-in { animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-breathe { animation: breathe 4s ease-in-out infinite; }
+
+* { -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  height: 100%;
+  overscroll-behavior: none;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+input, textarea, button {
+  font-family: inherit;
+}
+
+::placeholder {
+  color: var(--color-dim);
+  opacity: 0.6;
+}
+
+::selection {
+  background: rgba(200, 160, 101, 0.25);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+.delay-600 { animation-delay: 600ms; }
+.delay-700 { animation-delay: 700ms; }
+.delay-800 { animation-delay: 800ms; }

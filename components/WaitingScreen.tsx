@@ -1,0 +1,93 @@
+'use client'
+
+import type { Wave, Member, WaveResponse } from '@/lib/types'
+
+interface Props {
+  wave: Wave
+  responses: WaveResponse[]
+  members: Member[]
+  totalMembers: number
+  userResponse: WaveResponse | null
+}
+
+export default function WaitingScreen({ wave, responses, totalMembers, userResponse }: Props) {
+  const responded = responses.length
+  const remaining = totalMembers - responded
+
+  return (
+    <div
+      className="min-h-screen flex flex-col items-center justify-center px-8"
+      style={{ background: '#0a0a0a' }}
+    >
+      {/* Symbol */}
+      <div
+        className="font-display text-5xl font-light mb-16 animate-breathe"
+        style={{ color: '#c8a065' }}
+      >
+        ∿
+      </div>
+
+      {/* Dots */}
+      <div className="flex gap-4 mb-16">
+        {Array.from({ length: totalMembers }).map((_, i) => (
+          <div
+            key={i}
+            className="w-3 h-3 rounded-full transition-all duration-700"
+            style={{
+              background: i < responded ? '#c8a065' : 'transparent',
+              border: `1.5px solid ${i < responded ? '#c8a065' : '#2a2a2a'}`,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Status text */}
+      <div className="text-center animate-fade-in">
+        {remaining === 0 ? (
+          <p className="text-sm tracking-[0.2em] uppercase" style={{ color: '#c8a065' }}>
+            enthüllung folgt
+          </p>
+        ) : (
+          <>
+            <p
+              className="font-display text-5xl font-light mb-4"
+              style={{ color: '#e8e4de' }}
+            >
+              {remaining}
+            </p>
+            <p className="text-xs tracking-[0.25em] uppercase" style={{ color: '#6b6560' }}>
+              {remaining === 1 ? 'wartet noch' : 'warten noch'}
+            </p>
+          </>
+        )}
+      </div>
+
+      {/* User's own response preview */}
+      {userResponse && (
+        <div
+          className="mt-16 w-full max-w-xs p-5 border animate-fade-up"
+          style={{
+            borderColor: '#1e1e1e',
+            background: '#0f0f0f',
+            borderRadius: 2,
+          }}
+        >
+          <p className="text-xs tracking-[0.2em] uppercase mb-3" style={{ color: '#6b6560' }}>
+            Deine Antwort
+          </p>
+          <p className="text-base leading-relaxed" style={{ color: '#e8e4de' }}>
+            {userResponse.content}
+          </p>
+        </div>
+      )}
+
+      {/* Wave info */}
+      <p
+        className="absolute bottom-10 text-xs tracking-[0.25em] uppercase"
+        style={{ color: '#2a2a2a' }}
+      >
+        Welle {wave.number}
+      </p>
+    </div>
+  )
+}
