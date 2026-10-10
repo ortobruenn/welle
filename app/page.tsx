@@ -47,17 +47,41 @@ export default function Home() {
     const responseList = (waveResponses || []) as WaveResponse[]
     setResponses(responseList)
 
-    const myResponse = responseList.find(r => r.member_id === memberId) || null
-    setUserResponse(myResponse)
-
-    // Determine state
-    if (currentWave.status === 'reveal') {
+    // Determine state & Auto-Transitions
+    if (currentWave.status === 'active') {
+      if (responseList.length >= TOTAL_MEMBERS) {
+        // Alle haben geantwortet -> Auto-Reveal starten!
+        await supabase
+          .from('waves')
+          .update({ status: 'reveal', revealed_at: new Date().toISOString() })
+          .eq('id', currentWave.id)
+        setAppState('reveal')
+      } else {
+        setAppState(myResponse ? 'waiting' : 'wave')
+      }
+    } else if (currentWave.status === 'reveal') {
       setAppState('reveal')
     } else if (currentWave.status === 'cooldown') {
+      // Wenn der Cooldown abgelaufen ist -> Automatisch nächste Welle per Gemini generieren!
+      if (currentWave.next_wave_at && new Date(currentWave.next_wave_at).getTime() <= Date.now()) {
+        try {
+          await fetch('/api/generate-wave', { method: 'POST' })
+          // Danach frisch laden
+          const { data: updatedWaves } = await supabase
+            .from('waves')
+            .select('*')
+            .order('number', { ascending: false })
+            .limit(1)
+          if (updatedWaves && updatedWaves.length > 0) {
+            setWave(updatedWaves[0] as Wave)
+            setAppState('wave')
+            return
+          }
+        } catch (e) {
+          console.error('Auto next wave error:', e)
+        }
+      }
       setAppState('cooldown')
-    } else {
-      // active
-      setAppState(myResponse ? 'waiting' : 'wave')
     }
   }, [])
 
@@ -165,7 +189,14 @@ export default function Home() {
         wave={wave}
         responses={responses}
         members={members}
-        onComplete={() => setAppState('cooldown')}
+        onComplete={async () => {
+          const nextWaveDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          await supabase
+            .from('waves')
+            .update({ status: 'cooldown', next_wave_at: nextWaveDate })
+            .eq('id', wave.id)
+          setAppState('cooldown')
+        }}
       />
     )
   }

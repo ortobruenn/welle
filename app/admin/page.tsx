@@ -81,6 +81,17 @@ export default function AdminPage() {
     setLoading(false)
   }
 
+  const handleGenerateWithAI = async () => {
+    setLoading(true)
+    try {
+      await fetch('/api/generate-wave', { method: 'POST' })
+      await fetchData()
+    } catch (e) {
+      console.error(e)
+    }
+    setLoading(false)
+  }
+
   const updateWaveStatus = async (waveId: string, status: Wave['status'], extra?: Partial<Wave>) => {
     setLoading(true)
     await supabase.from('waves').update({ status, ...extra }).eq('id', waveId)
@@ -224,14 +235,24 @@ export default function AdminPage() {
             />
           )}
 
-          <button
-            onClick={handleCreateWave}
-            disabled={loading || !newPrompt.trim()}
-            className="self-start text-sm tracking-[0.2em] uppercase py-2 hover:opacity-70 transition-opacity disabled:opacity-30"
-            style={{ color: '#c8a065' }}
-          >
-            {loading ? '···' : 'Erstellen →'}
-          </button>
+          <div className="flex gap-4">
+            <button
+              onClick={handleCreateWave}
+              disabled={loading || !newPrompt.trim()}
+              className="text-sm tracking-[0.2em] uppercase py-2 hover:opacity-70 transition-opacity disabled:opacity-30"
+              style={{ color: '#c8a065' }}
+            >
+              {loading ? '···' : 'Manuell erstellen →'}
+            </button>
+            <button
+              onClick={handleGenerateWithAI}
+              disabled={loading}
+              className="text-sm tracking-[0.2em] uppercase py-2 px-4 border border-[#c8a065] hover:opacity-70 transition-opacity disabled:opacity-30"
+              style={{ color: '#c8a065', background: 'rgba(200,160,101,0.05)' }}
+            >
+              {loading ? '···' : '✨ KI-Welle jetzt auslösen'}
+            </button>
+          </div>
         </div>
       </section>
 
