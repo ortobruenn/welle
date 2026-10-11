@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import type { Wave, Member, WaveResponse } from '@/lib/types'
-import { extractEcho, extractGlitch, cleanOptions, extractEnigma, extractVibeOptions } from '@/lib/mystery'
+import { extractEcho, extractUndercover, extractGlitch, cleanOptions, extractEnigma, extractVibeOptions } from '@/lib/mystery'
 import PushBell from './PushBell'
 
 interface Props {
@@ -25,7 +25,7 @@ export default function RevealScreen({
   const isSpectrum = wave.prompt_type === 'spectrum'
   const isEnigma = wave.prompt_type === 'enigma'
   const isVibe = wave.prompt_type === 'vibe'
-  const isUndercover = wave.prompt_type === 'undercover' || !!extractGlitch(wave.options)
+  const isUndercover = wave.prompt_type === 'undercover'
   const supportsBlindGuessing = !isPulse && !isSilence && !isSpectrum && !isEnigma && !isVibe && !isUndercover && responses.length > 1
   const supportsUndercoverVoting = isUndercover && responses.length > 1
 
@@ -39,8 +39,8 @@ export default function RevealScreen({
   const [echo, setEcho] = useState<string | null>(extractEcho(wave.options))
   const [loadingEcho, setLoadingEcho] = useState(false)
 
-  // Glitch anomaly
-  const glitch = extractGlitch(wave.options)
+  // Glitch anomaly (only valid for undercover waves)
+  const glitch = isUndercover ? (extractUndercover(wave.options) || extractGlitch(wave.options)) : null
 
   useEffect(() => {
     const current = extractEcho(wave.options)
@@ -761,27 +761,6 @@ export default function RevealScreen({
         </div>
       )}
 
-      {/* Whisper / Glitch Anomaly Reveal (Legacy fallback for non-undercover waves) */}
-      {isUnveiled && !isUndercover && glitch && (
-        <div className="my-4 p-5 border border-[#c8a065]/50 bg-[#16130d] rounded-sm animate-fade-up shadow-xl">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm text-[#c8a065]">⚡</span>
-            <span className="text-xs tracking-[0.25em] uppercase text-[#c8a065] font-semibold">
-              Anomalie der Welle · Ein Flüsterer unter euch
-            </span>
-          </div>
-          <p className="text-xs text-[#a09990] mb-3 leading-relaxed">
-            Die Welle hat auf einer gespaltenen Frequenz geschwungen.{' '}
-            <span className="text-[#e8e4de] font-semibold">
-              {glitch.memberName || getMemberName(glitch.memberId)}
-            </span>{' '}
-            empfing heimlich eine andere Aufforderung:
-          </p>
-          <div className="p-3 bg-[#0a0a0a] border border-[#2a2318] rounded text-sm italic text-[#c8a065]">
-            „{glitch.prompt}“
-          </div>
-        </div>
-      )}
 
       {/* Lightbox Modal */}
       {lightboxImg && (

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import type { Wave, Member } from '@/lib/types'
-import { extractGlitch, cleanOptions, extractEnigma, extractVibeOptions } from '@/lib/mystery'
+import { extractUndercover, extractGlitch, cleanOptions, extractEnigma, extractVibeOptions } from '@/lib/mystery'
 import DrawCanvas from './DrawCanvas'
 import PhotoCapture from './PhotoCapture'
 import PulseTouch from './PulseTouch'
@@ -26,9 +26,9 @@ export default function WaveScreen({ wave, member, members, onSubmit }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const glitch = extractGlitch(wave.options)
-  const isGlitchTarget = glitch?.memberId === member.id
-  const isUndercover = wave.prompt_type === 'undercover' || !!glitch
+  const isUndercover = wave.prompt_type === 'undercover'
+  const glitch = isUndercover ? (extractUndercover(wave.options) || extractGlitch(wave.options)) : null
+  const isGlitchTarget = isUndercover && glitch?.memberId === member.id
   const displayPrompt = isGlitchTarget ? glitch.prompt : wave.prompt
   const choices = cleanOptions(wave.options)
   const vibeOptions = extractVibeOptions(wave.options)

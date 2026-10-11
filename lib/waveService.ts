@@ -103,10 +103,34 @@ export const CURATED_PROMPTS = [
     prompt_type: 'pulse',
     options: null
   },
+  {
+    prompt: 'Synchron-Check: Fühle den Rhythmus und halte den Kreis für exakt 7 Sekunden im Gleichklang.',
+    glitch_prompt: null,
+    prompt_type: 'pulse',
+    options: null
+  },
+  {
+    prompt: 'Atem-Synchro: Tief einatmen und den Kreis für genau 7 Sekunden gedrückt halten.',
+    glitch_prompt: null,
+    prompt_type: 'pulse',
+    options: null
+  },
 
   // STILLE & ACHTSAMKEIT 🕯️
   {
     prompt: 'Nimm dir 30 Sekunden absolute Bildschirmpause. Berühre nichts, atme nur tief durch.',
+    glitch_prompt: null,
+    prompt_type: 'silence',
+    options: null
+  },
+  {
+    prompt: 'Die Welt wartet kurz: Lege das Telefon für 30 Sekunden beiseite und lausche den Geräuschen um dich herum.',
+    glitch_prompt: null,
+    prompt_type: 'silence',
+    options: null
+  },
+  {
+    prompt: 'Stille Welle: 30 Sekunden Augen zu und den Kopf leeren.',
     glitch_prompt: null,
     prompt_type: 'silence',
     options: null
@@ -293,6 +317,65 @@ export const CURATED_PROMPTS = [
   },
 ]
 
+export function getAvailableWaveFormats(membersCount: number) {
+  return [
+    { type: 'text', desc: 'Spontane Frage als Freitext (mal frech, mal neugierig, mal reflektiert)' },
+    { type: 'choice', desc: 'Knackiges, überraschendes A/B-Dilemma mit 2 prägnanten Optionen' },
+    { type: 'vibe', desc: 'Humorvolles Bild-Dilemma / Vibe-Check ("Bist du heute eher X oder Y?") mit 2 lustigen Cartoon-Charakteren' },
+    { type: 'spectrum', desc: 'Zwei gegensätzliche Pole in "options" (z.B. ["120% Tatendrang", "2% Akku auf der Couch"] oder ["Kühler Kopf", "Bauchgefühl"])' },
+    { type: 'photo', desc: 'Schnappschuss aus dem Hier und Jetzt (z.B. das unordentlichste Eck, heutiger Kaffeestand, Wetter-Blick, Textur)' },
+    { type: 'draw', desc: 'Schnelle Finger-Zeichnung auf Canvas (z.B. ein abstraktes Symbol, blind ein Tier, aktuelle Laune)' },
+    { type: 'pulse', desc: 'Kurzer Synchro-Moment: Kreis für 7 Sekunden rein nach Gefühl gedrückt halten' },
+    { type: 'silence', desc: '30 Sekunden Bildschirmpause zum kurzen Durchatmen' },
+    { type: 'enigma', desc: 'Kooperatives Worträtsel ("options": ["__solution__:WORT", "__hint__:Tipp", "Zeile 1", "Zeile 2", "Zeile 3", "Zeile 4"]) – niemals Zahlen wie "vier Bruchstücke" im Text erwähnen!' },
+    ...(membersCount >= 2 ? [{
+      type: 'undercover',
+      desc: 'Undercover-Anomalie (Social-Deduction): Die Gruppe erhält eine normale Hauptfrage. Genau EIN heimlicher Schatten-Agent erhält in "glitch_prompt" eine verdrehte Gegen-Mission, die er unauffällig als Antwort tarnen muss. Beim Schleier lüften entlarvt die Gruppe den Agenten!'
+    }] : [])
+  ]
+}
+
+export function computeAllowedFormats(previousWaves: any[], membersCount: number) {
+  const allFormats = getAvailableWaveFormats(membersCount)
+  const allTypes = allFormats.map(f => f.type)
+
+  // Chronologisch (aufsteigend) durchgehen, um den exakten Zustand des aktuellen Zyklus zu bestimmen:
+  const sortedWaves = [...(previousWaves || [])].sort((a, b) => (a.number || 0) - (b.number || 0))
+
+  const currentCycle = new Set<string>()
+
+  for (const wave of sortedWaves) {
+    const t = wave.prompt_type
+    if (!t || !allTypes.includes(t)) continue
+
+    // Sobald ein Typ wiederkehrt, der im laufenden Zyklus schon vorkam:
+    // Der vorherige Zyklus ist damit zu Ende und mit diesem Typ startete der nächste Zyklus.
+    if (currentCycle.has(t)) {
+      currentCycle.clear()
+    }
+
+    currentCycle.add(t)
+
+    // Sobald alle Typen im Zyklus vorgekommen sind, ist der Zyklus komplett:
+    if (currentCycle.size === allTypes.length) {
+      currentCycle.clear()
+    }
+  }
+
+  // Noch offene Formate im aktuellen Zyklus:
+  let allowed = allFormats.filter(f => !currentCycle.has(f.type))
+
+  // Falls der Zyklus gerade vollständig abgeschlossen wurde (currentCycle leer):
+  // Alle Formate wieder freigeben, außer unmittelbar das zuletzt gespielte Format
+  if (allowed.length === 0) {
+    const lastPlayed = sortedWaves.length > 0 ? sortedWaves[sortedWaves.length - 1]?.prompt_type : null
+    allowed = allFormats.filter(f => f.type !== lastPlayed)
+    if (allowed.length === 0) allowed = allFormats
+  }
+
+  return allowed
+}
+
 export async function generateWaveContent(
   previousWaves: any[],
   members: any[],
@@ -310,57 +393,12 @@ export async function generateWaveContent(
 
   const memberList = members || []
 
-  const ALL_FORMATS = [
-    { type: 'text', desc: 'Spontane Frage als Freitext (mal frech, mal neugierig, mal reflektiert)' },
-    { type: 'choice', desc: 'Knackiges, überraschendes A/B-Dilemma mit 2 prägnanten Optionen' },
-    { type: 'vibe', desc: 'Humorvolles Bild-Dilemma / Vibe-Check ("Bist du heute eher X oder Y?") mit 2 lustigen Cartoon-Charakteren' },
-    { type: 'spectrum', desc: 'Zwei gegensätzliche Pole in "options" (z.B. ["120% Tatendrang", "2% Akku auf der Couch"] oder ["Kühler Kopf", "Bauchgefühl"])' },
-    { type: 'photo', desc: 'Schnappschuss aus dem Hier und Jetzt (z.B. das unordentlichste Eck, heutiger Kaffeestand, Wetter-Blick, Textur)' },
-    { type: 'draw', desc: 'Schnelle Finger-Zeichnung auf Canvas (z.B. ein abstraktes Symbol, blind ein Tier, aktuelle Laune)' },
-    { type: 'pulse', desc: 'Kurzer Synchro-Moment: Kreis für 7 Sekunden rein nach Gefühl gedrückt halten' },
-    { type: 'silence', desc: '30 Sekunden Bildschirmpause zum kurzen Durchatmen' },
-    { type: 'enigma', desc: 'Kooperatives Worträtsel ("options": ["__solution__:WORT", "__hint__:Tipp", "Zeile 1", "Zeile 2", "Zeile 3", "Zeile 4"]) – niemals Zahlen wie "vier Bruchstücke" im Text erwähnen!' },
-    ...(memberList.length >= 2 ? [{
-      type: 'undercover',
-      desc: 'Undercover-Anomalie (Social-Deduction): Die Gruppe erhält eine normale Hauptfrage. Genau EIN heimlicher Schatten-Agent erhält in "glitch_prompt" eine verdrehte Gegen-Mission, die er unauffällig als Antwort tarnen muss. Beim Schleier lüften entlarvt die Gruppe den Agenten!'
-    }] : [])
-  ]
-
-  const allTypes = ALL_FORMATS.map(f => f.type)
-
   // STRIKTE ZYKLUS-REGEL: Ein Format darf erst wieder drankommen, wenn JEDER andere Typ einmal dran war!
-  // Wir ermitteln rückwärtsgehend aus den bisherigen Wellen, welche Typen im aktuellen Zyklus verbraucht sind.
-  const usedInCurrentCycle = new Set<string>()
+  const allowedFormats = computeAllowedFormats(previousWaves || [], memberList.length)
 
-  for (const wave of previousWaves || []) {
-    const t = wave.prompt_type
-    if (!t || !allTypes.includes(t)) continue
-
-    // Sobald sich ein Typ wiederholt, endete dort der vorherige Zyklus
-    if (usedInCurrentCycle.has(t)) {
-      break
-    }
-    usedInCurrentCycle.add(t)
-
-    // Wenn alle Typen erreicht wurden, war der Zyklus komplett
-    if (usedInCurrentCycle.size === allTypes.length) {
-      break
-    }
-  }
-
-  // Noch offene Formate im aktuellen Zyklus:
-  let allowedFormats = ALL_FORMATS.filter(f => !usedInCurrentCycle.has(f.type))
-
-  // Falls alle Typen verbraucht waren (Zyklus vollendet): Neuer Zyklus beginnt!
-  // Einzige Einschränkung: Nicht direkt denselben Typ wie die unmittelbar letzte Welle wählen
-  if (allowedFormats.length === 0) {
-    const lastPlayed = previousWaves?.[0]?.prompt_type
-    allowedFormats = ALL_FORMATS.filter(f => f.type !== lastPlayed)
-    if (allowedFormats.length === 0) allowedFormats = ALL_FORMATS
-  }
-
-  const allowedTypes = allowedFormats.map(f => f.type)
-  const forbiddenTypes = allTypes.filter(t => !allowedTypes.includes(t))
+  // Format DETERMINISTISCH per Bag-Shuffle ziehen:
+  // Dadurch ist 100% garantiert, dass jedes Format (inkl. draw, pulse, etc.) genau einmal pro Zyklus drankommt!
+  const chosenFormat = allowedFormats[Math.floor(Math.random() * allowedFormats.length)]
 
   // Dynamischer Stimmungs-Wechsel (Mood Variety)
   const MOODS = [
@@ -399,26 +437,64 @@ STRENGE REGELN:
    - Vermeide übertrieben schwere, düstere oder pseudo-mystische Floskeln.
    - Sei frisch, pointiert, lebendig und charmant. Mal locker und frech, mal clever, mal poetisch.
    - Prompts müssen direkt zünden und leicht verständlich sein. Keine Schachtelsätze.
-3. FORMAT-ROTATION (VOLLER ZYKLUS):
-   Im aktuellen Zyklus wurden bereits folgende Formate verwendet und sind STRENGSTENS VERBOTEN: ${forbiddenTypes.length > 0 ? forbiddenTypes.join(', ') : 'keine'}.
-   Du MUSST zwingend eines der folgenden noch OFFENEN Formate wählen:
-${allowedFormats.map(f => `- "${f.type}": ${f.desc}`).join('\n')}
+3. VORGEGEBENES FORMAT FÜR DIESE WELLE:
+   👉 "${chosenFormat.type}" 👈 (${chosenFormat.desc})
+   Du MUSST Inhalte genau für dieses Format erstellen!
 
-Format-Regeln:
-- Wenn "prompt_type" === "undercover":
-  Erzeuge in "prompt" eine anregende Hauptfrage für die Gruppe (Freitext) und in "glitch_prompt" eine verdrehte, geheime Gegen- oder Tarnmission für genau 1 Schatten-Agenten. Der Agent hat den Auftrag, seine Antwort so raffiniert zu tarnen, dass die Gruppe beim Schleier-Lüften nicht merkt, dass er eine andere Aufgabe hatte! "options" ist zwingend null.
-- Für ALLE ANDEREN Formate ("choice", "vibe", "spectrum", "text", "draw", "photo", "pulse", "silence", "enigma"):
-  "glitch_prompt" ist STRIKT null! Niemals Glitches in Choice-, Bild- oder Spektrum-Formate mischen!
+${chosenFormat.type === 'undercover' ? `FORMAT-ANWEISUNG FÜR "undercover":
+- Erzeuge in "prompt" eine anregende Hauptfrage für die Gruppe (Freitext).
+- Erzeuge in "glitch_prompt" eine humorvolle, verdrehte Gegen- oder Tarnmission für genau 1 Schatten-Agenten.
+- "options" ist null.` :
+chosenFormat.type === 'choice' ? `FORMAT-ANWEISUNG FÜR "choice":
+- Erzeuge in "prompt" ein knackiges A/B-Dilemma.
+- Erzeuge in "options" genau 2 prägnante Wahlmöglichkeiten: ["Option 1", "Option 2"].
+- "glitch_prompt" ist null.` :
+chosenFormat.type === 'spectrum' ? `FORMAT-ANWEISUNG FÜR "spectrum":
+- Erzeuge in "prompt" eine Frage zum heutigen Kopf- oder Gefühlszustand.
+- Erzeuge in "options" genau 2 gegensätzliche Pole: ["Pol A (z.B. 100% Tatendrang)", "Pol B (z.B. Couch & Decke)"].
+- "glitch_prompt" ist null.` :
+chosenFormat.type === 'vibe' ? `FORMAT-ANWEISUNG FÜR "vibe":
+- Erzeuge in "prompt" ein humorvolles Dilemma ("Bist du heute eher X oder Y?").
+- Erzeuge in "options" 2 Optionen mit lustigen Cartoon-Charakteren:
+  [
+    { "title": "Kurzer Titel A", "image_prompt": "funny cute cartoon character A, vibrant comic illustration" },
+    { "title": "Kurzer Titel B", "image_prompt": "funny cute cartoon character B, vibrant comic illustration" }
+  ]
+- "glitch_prompt" ist null.` :
+chosenFormat.type === 'draw' ? `FORMAT-ANWEISUNG FÜR "draw":
+- Erzeuge in "prompt" eine originelle, schnelle Zeichen-Aufgabe auf Canvas (z.B. blind ein dreibeiniges Tier, Laune als Emoji, chaotischster Gegenstand).
+- "options" ist null.
+- "glitch_prompt" ist null.` :
+chosenFormat.type === 'photo' ? `FORMAT-ANWEISUNG FÜR "photo":
+- Erzeuge in "prompt" einen Schnappschuss-Impuls für die Kamera (z.B. Kaffeestand, der Himmel aus dem Fenster, unordentlichstes Detail).
+- "options" ist null.
+- "glitch_prompt" ist null.` :
+chosenFormat.type === 'pulse' ? `FORMAT-ANWEISUNG FÜR "pulse":
+- Erzeuge in "prompt" eine kurze Aufforderung, für genau 7 Sekunden nach Gefühl den Kreis gedrückt zu halten.
+- "options" ist null.
+- "glitch_prompt" ist null.` :
+chosenFormat.type === 'silence' ? `FORMAT-ANWEISUNG FÜR "silence":
+- Erzeuge in "prompt" einen ruhigen Impuls für 30 Sekunden Bildschirmpause zum kurzen Durchatmen.
+- "options" ist null.
+- "glitch_prompt" ist null.` :
+chosenFormat.type === 'enigma' ? `FORMAT-ANWEISUNG FÜR "enigma":
+- Kooperatives Worträtsel.
+- "options": ["__solution__:WORT", "__hint__:Hinweis", "Zeile 1", "Zeile 2", "Zeile 3", "Zeile 4"]
+- "glitch_prompt" ist null.` :
+`FORMAT-ANWEISUNG FÜR "text":
+- Spontane, lebendige Alltagsfrage als Freitext.
+- "options" ist null.
+- "glitch_prompt" ist null.`}
 
 Kontext bisheriger Wellen:
 ${contextText}
 
 Antworte STRIKT im JSON-Format:
 {
-  "prompt": "Die Hauptfrage / Anweisung an alle",
-  "prompt_type": "${allowedFormats.map(f => f.type).join('" | "')}",
-  "options": ["Option 1", "Option 2"] | null,
-  "glitch_prompt": "Verdrehte Tarn-Mission für den Undercover-Agenten" | null
+  "prompt": "Hauptfrage / Text für alle",
+  "prompt_type": "${chosenFormat.type}",
+  "options": ... | null,
+  "glitch_prompt": ${chosenFormat.type === 'undercover' ? '"Verdrehte Tarn-Mission für den Agenten"' : 'null'}
 }`
 
   let parsed: any = null
@@ -449,18 +525,17 @@ Antworte STRIKT im JSON-Format:
     }
   }
 
-  // Intelligenter Pool-Fallback MIT STRIKTER ZYKLUS-GARANTIE:
-  // Falls Gemini fehlt, fehlschlägt ODER ein nicht erlaubtes Format gewählt hat:
-  if (!parsed || !parsed.prompt || !allowedTypes.includes(parsed.prompt_type)) {
-    if (parsed?.prompt_type && !allowedTypes.includes(parsed.prompt_type)) {
-      console.warn(`[Wave] Gemini ignorierte Zyklus-Rotation ("${parsed.prompt_type}" nicht in ${allowedTypes.join(', ')}). Ersetze durch erlaubtes Pool-Format!`)
+  // Intelligenter Pool-Fallback:
+  // Falls Gemini fehlt, fehlschlägt ODER ein anderes Format gewählt hat:
+  if (!parsed || !parsed.prompt || parsed.prompt_type !== chosenFormat.type) {
+    if (parsed && parsed.prompt_type !== chosenFormat.type) {
+      console.warn(`[Wave] Gemini ignorierte vorgegebenes Format ("${parsed.prompt_type}" statt "${chosenFormat.type}"). Nutze Pool!`)
     }
     const pastPrompts = (previousWaves || []).map(w => w.prompt)
-    // Nur Formate aus dem noch offenen Zyklus erlauben
-    const availableAllowed = CURATED_PROMPTS.filter(p => allowedTypes.includes(p.prompt_type))
-    const freshAllowed = availableAllowed.filter(p => !pastPrompts.includes(p.prompt))
-    const pool = freshAllowed.length > 0 ? freshAllowed : (availableAllowed.length > 0 ? availableAllowed : CURATED_PROMPTS)
-    parsed = pool[Math.floor(Math.random() * pool.length)]
+    const pool = CURATED_PROMPTS.filter(p => p.prompt_type === chosenFormat.type)
+    const freshAllowed = pool.filter(p => !pastPrompts.includes(p.prompt))
+    const selectedPool = freshAllowed.length > 0 ? freshAllowed : (pool.length > 0 ? pool : CURATED_PROMPTS)
+    parsed = selectedPool[Math.floor(Math.random() * selectedPool.length)]
   }
 
   // Vibe-Optionen transformieren falls nötig
@@ -512,15 +587,17 @@ export async function prepareWaveContent(waveId?: string): Promise<{ success: bo
 
   if (!waveToPrepare) return { success: false }
 
-  const existing = extractPreparedWave(waveToPrepare.options)
-  if (existing) {
-    return { success: true, alreadyPrepared: true, wave: waveToPrepare }
-  }
-
   const [{ data: previousWaves }, { data: members }] = await Promise.all([
-    supabase.from('waves').select('number, prompt, prompt_type, responses(content)').order('number', { ascending: false }).limit(30),
+    supabase.from('waves').select('number, prompt, prompt_type, responses(content)').order('number', { ascending: false }).limit(50),
     supabase.from('members').select('id, name')
   ])
+
+  const existing = extractPreparedWave(waveToPrepare.options)
+  const allowedFormats = computeAllowedFormats(previousWaves || [], (members || []).length)
+
+  if (existing && allowedFormats.some(f => f.type === existing.prompt_type)) {
+    return { success: true, alreadyPrepared: true, wave: waveToPrepare }
+  }
 
   const nextNumber = waveToPrepare.number + 1
   const preparedContent = await generateWaveContent(previousWaves || [], members || [], nextNumber)
@@ -577,7 +654,7 @@ export async function activateWaveInternal(force = false): Promise<{ success: bo
 
     // Vorherige Wellen und Mitglieder holen
     const [{ data: previousWaves }, { data: members }] = await Promise.all([
-      supabase.from('waves').select('number, prompt, prompt_type, responses(content)').order('number', { ascending: false }).limit(30),
+      supabase.from('waves').select('number, prompt, prompt_type, responses(content)').order('number', { ascending: false }).limit(50),
       supabase.from('members').select('id, name')
     ])
 
@@ -586,10 +663,14 @@ export async function activateWaveInternal(force = false): Promise<{ success: bo
       : 1
 
     // Prüfen, ob bereits vorab vorbereitete Inhalte vorliegen (Zero Latency!)
+    // WICHTIG: Das gecachte Format MUSS zwingend im aktuellen Zyklus noch erlaubt sein!
     const cachedPrepared = topWave ? extractPreparedWave(topWave.options) : null
+    const allowedFormats = computeAllowedFormats(previousWaves || [], (members || []).length)
+    const isCachedValid = cachedPrepared && allowedFormats.some(f => f.type === cachedPrepared.prompt_type)
+
     let content: { prompt: string; prompt_type: string; options: string[] | null }
 
-    if (cachedPrepared && !force) {
+    if (isCachedValid && !force) {
       content = cachedPrepared
     } else {
       content = await generateWaveContent(previousWaves || [], members || [], nextNumber)

@@ -80,25 +80,35 @@ export default function AdminPage() {
     setLoading(true)
 
     const nextNumber = waves.length > 0 ? Math.max(...waves.map(w => w.number)) + 1 : 1
-    const options = (newType === 'choice' || newType === 'spectrum')
-      ? newOptions.split('\n').map(o => o.trim()).filter(Boolean)
-      : newType === 'vibe'
-      ? buildVibeOptions(
-          newOptions.split('\n').map(o => o.trim()).filter(Boolean).map((line, idx) => {
-            const parts = line.split('|').map(p => p.trim())
-            const title = parts[0] || `Vibe ${idx + 1}`
-            const prompt = parts[1] || `${title} funny cute cartoon character, vibrant comic illustration`
-            const seed = Math.floor(Math.random() * 80000) + 10000 + idx
-            const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&nologo=true&seed=${seed}`
-            return {
-              id: `opt_${idx + 1}`,
-              title,
-              prompt,
-              imageUrl,
-            }
-          })
-        )
-      : null
+    let options: string[] | null = null
+
+    if (newType === 'choice' || newType === 'spectrum') {
+      options = newOptions.split('\n').map(o => o.trim()).filter(Boolean)
+    } else if (newType === 'vibe') {
+      options = buildVibeOptions(
+        newOptions.split('\n').map(o => o.trim()).filter(Boolean).map((line, idx) => {
+          const parts = line.split('|').map(p => p.trim())
+          const title = parts[0] || `Vibe ${idx + 1}`
+          const prompt = parts[1] || `${title} funny cute cartoon character, vibrant comic illustration`
+          const seed = Math.floor(Math.random() * 80000) + 10000 + idx
+          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&nologo=true&seed=${seed}`
+          return {
+            id: `opt_${idx + 1}`,
+            title,
+            prompt,
+            imageUrl,
+          }
+        })
+      )
+    } else if (newType === 'undercover' && members.length >= 2) {
+      const target = members[Math.floor(Math.random() * members.length)]
+      options = attachUndercoverToOptions(
+        null,
+        target.id,
+        target.name,
+        newOptions.trim() || 'Beschreibe das Gegenteil deiner wahren Gedanken – aber tarne deinen Satz so geschickt, dass die anderen denken, du meinst die Hauptfrage!'
+      )
+    }
 
     await supabase.from('waves').insert({
       number: nextNumber,
@@ -433,6 +443,14 @@ export default function AdminPage() {
             <span className="text-[#6b6560] block text-[11px]">20s Atem-Timer</span>
           </button>
           <button
+            onClick={() => handleQuickCreate('pulse', 'Kurzer Reset: Schließe die Augen und halte den Kreis für genau 7 Sekunden gedrückt.')}
+            disabled={loading}
+            className="p-3 text-left border border-[#2a2a2a] hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d]"
+          >
+            <span className="block font-medium text-[#e8e4de] mb-1">⏱️ Puls-Welle</span>
+            <span className="text-[#6b6560] block text-[11px]">7s Synchron-Touch</span>
+          </button>
+          <button
             onClick={handleQuickUndercoverCreate}
             disabled={loading || members.length === 0}
             className="p-3 text-left border border-[#c8a065]/40 hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d] disabled:opacity-40"
@@ -474,6 +492,7 @@ export default function AdminPage() {
               { id: 'spectrum', label: 'Spektrum ⚖️' },
               { id: 'photo', label: 'Foto 📷' },
               { id: 'draw', label: 'Zeichnen 🎨' },
+              { id: 'pulse', label: 'Puls 💓' },
               { id: 'silence', label: 'Stille 🧘' },
               { id: 'enigma', label: 'Enigma 🧩' },
             ] as const).map(t => (
@@ -502,7 +521,7 @@ export default function AdminPage() {
             placeholder="Frage / Prompt..."
           />
 
-          {(newType === 'choice' || newType === 'spectrum' || newType === 'vibe') && (
+          {(newType === 'choice' || newType === 'spectrum' || newType === 'vibe' || newType === 'undercover') && (
             <textarea
               value={newOptions}
               onChange={e => setNewOptions(e.target.value)}
@@ -514,6 +533,8 @@ export default function AdminPage() {
                   ? "Pol A (links)\nPol B (rechts)"
                   : newType === 'vibe'
                   ? "Titel A | Bild-Prompt A (optional)\nTitel B | Bild-Prompt B (optional)"
+                  : newType === 'undercover'
+                  ? "Geheime Tarn-Mission für den Undercover-Agenten (optional)"
                   : "Optionen (eine pro Zeile)"
               }
             />
@@ -588,9 +609,9 @@ export default function AdminPage() {
                 {w.prompt}
               </p>
 
-              {extractGlitch(w.options) && (
+              {w.prompt_type === 'undercover' && extractGlitch(w.options) && (
                 <div className="text-xs text-[#c8a065] mb-3 bg-[#c8a065]/10 border border-[#c8a065]/30 px-2.5 py-1.5 rounded">
-                  ⚡ <strong>Glitch für {extractGlitch(w.options)?.memberName || 'Mitglied'}:</strong> „{extractGlitch(w.options)?.prompt}“
+                  🕵️ <strong>Undercover-Agent {extractGlitch(w.options)?.memberName || 'Mitglied'}:</strong> „{extractGlitch(w.options)?.prompt}“
                 </div>
               )}
 
