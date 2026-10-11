@@ -211,11 +211,15 @@ export default function Home() {
 
   const handleSubmit = async (content: string) => {
     if (!member || !wave) return
-    await supabase.from('responses').insert({
+    const { error } = await supabase.from('responses').insert({
       wave_id: wave.id,
       member_id: member.id,
       content,
     })
+    if (error) {
+      console.error('Failed to insert response:', error)
+      throw error
+    }
     await loadAppState(member.id)
   }
 

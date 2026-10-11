@@ -75,12 +75,28 @@ export default function WaitingScreen({ wave, responses, totalMembers, userRespo
           <p className="text-xs tracking-[0.2em] uppercase mb-3" style={{ color: '#6b6560' }}>
             Deine Antwort
           </p>
-          {userResponse.content.startsWith('data:image/') ? (
+          {wave.prompt_type === 'pulse' ? (
+            <div className="flex items-center gap-3 py-1">
+              <span className="font-display text-2xl text-[#c8a065] animate-breathe">∿</span>
+              <p className="text-sm text-[#e8e4de]">
+                Dein Puls wurde übertragen.
+              </p>
+            </div>
+          ) : wave.prompt_type === 'silence' ? (
+            <div className="flex items-center gap-3 py-1">
+              <span className="font-display text-2xl text-[#c8a065]">🧘</span>
+              <p className="text-sm text-[#e8e4de]">
+                Stiller Moment vollzogen.
+              </p>
+            </div>
+          ) : userResponse.content.startsWith('data:image/') ? (
             <div className="w-full aspect-square rounded overflow-hidden border border-[#2a2a2a] my-1">
               <img
                 src={userResponse.content}
                 alt="Deine Kreation"
-                className="w-full h-full object-contain bg-[#0a0a0a]"
+                className={`w-full h-full ${
+                  wave.prompt_type === 'draw' ? 'object-contain bg-[#0a0a0a]' : 'object-cover'
+                }`}
               />
             </div>
           ) : (

@@ -81,6 +81,20 @@ export default function AdminPage() {
     setLoading(false)
   }
 
+  const handleQuickCreate = async (type: Wave['prompt_type'], prompt: string, options?: string[]) => {
+    setLoading(true)
+    const nextNumber = waves.length > 0 ? Math.max(...waves.map(w => w.number)) + 1 : 1
+    await supabase.from('waves').insert({
+      number: nextNumber,
+      prompt,
+      prompt_type: type,
+      options: options || null,
+      status: 'active',
+    })
+    await fetchData()
+    setLoading(false)
+  }
+
   const handleGenerateWithAI = async () => {
     setLoading(true)
     try {
@@ -191,10 +205,51 @@ export default function AdminPage() {
         </div>
       </section>
 
+      {/* 1-Klick Schnelltests */}
+      <section className="mb-10">
+        <h2 className="text-xs tracking-[0.3em] uppercase mb-4" style={{ color: '#c8a065' }}>
+          ⚡ 1-Klick Format-Tests starten
+        </h2>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => handleQuickCreate('photo', 'Ein Blick aus deinem nächsten Fenster – zeig uns den Himmel über deiner Stadt.')}
+            disabled={loading}
+            className="p-3 text-left border border-[#2a2a2a] hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d]"
+          >
+            <span className="block font-medium text-[#e8e4de] mb-1">📷 Foto-Welle</span>
+            <span className="text-[#6b6560] block text-[11px]">Kamera / Fotoupload</span>
+          </button>
+          <button
+            onClick={() => handleQuickCreate('pulse', 'Ein gemeinsamer Puls über die Distanz. Berühre das Zentrum für 10 Sekunden.')}
+            disabled={loading}
+            className="p-3 text-left border border-[#2a2a2a] hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d]"
+          >
+            <span className="block font-medium text-[#e8e4de] mb-1">∿ Puls-Welle</span>
+            <span className="text-[#6b6560] block text-[11px]">10s Display halten</span>
+          </button>
+          <button
+            onClick={() => handleQuickCreate('draw', 'Zeichne mit einem Strich ein Symbol, das deinen heutigen Tag einfängt.')}
+            disabled={loading}
+            className="p-3 text-left border border-[#2a2a2a] hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d]"
+          >
+            <span className="block font-medium text-[#e8e4de] mb-1">🎨 Skizzen-Welle</span>
+            <span className="text-[#6b6560] block text-[11px]">Finger-Zeichnung</span>
+          </button>
+          <button
+            onClick={() => handleQuickCreate('silence', 'Nimm dir 20 Sekunden vollkommene Stille. Lass das Rauschen der Welt kurz verblassen.')}
+            disabled={loading}
+            className="p-3 text-left border border-[#2a2a2a] hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d]"
+          >
+            <span className="block font-medium text-[#e8e4de] mb-1">🧘 Stille-Welle</span>
+            <span className="text-[#6b6560] block text-[11px]">20s Atem-Timer</span>
+          </button>
+        </div>
+      </section>
+
       {/* Create Wave */}
       <section className="mb-12">
         <h2 className="text-xs tracking-[0.3em] uppercase mb-4" style={{ color: '#6b6560' }}>
-          Neue Welle
+          Neue Welle (Manuell)
         </h2>
         <div className="flex flex-col gap-4 p-5 border" style={{ borderColor: '#1e1e1e', background: '#0d0d0d', borderRadius: 2 }}>
           <div className="flex gap-2 flex-wrap">
