@@ -224,7 +224,22 @@ export default function Home() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'members' },
-        () => fetchMembers()
+        async () => {
+          fetchMembers()
+          if (member?.id) {
+            const { data: stillThere } = await supabase
+              .from('members')
+              .select('id')
+              .eq('id', member.id)
+              .maybeSingle()
+            if (!stillThere) {
+              localStorage.removeItem('welle_member_id')
+              localStorage.removeItem('welle_member_name')
+              setMember(null)
+              setAppState('join')
+            }
+          }
+        }
       )
       .on(
         'postgres_changes',

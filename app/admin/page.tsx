@@ -279,8 +279,30 @@ export default function AdminPage() {
   }
 
   const deleteMember = async (memberId: string) => {
-    await supabase.from('members').delete().eq('id', memberId)
-    await fetchData()
+    try {
+      await supabase.from('push_subscriptions').delete().eq('member_id', memberId)
+      await supabase.from('responses').delete().eq('member_id', memberId)
+      await supabase.from('reveals_seen').delete().eq('member_id', memberId)
+      await supabase.from('members').delete().eq('id', memberId)
+      await fetchData()
+    } catch (e) {
+      console.error('Delete member error:', e)
+    }
+  }
+
+  const deleteAllMembers = async () => {
+    if (!confirm('Möchtest du wirklich ALLE Mitglieder entfernen? Alle Geräte werden beim nächsten Öffnen/Echtzeit-Update wieder zum Onboarding-Screen zurückgesetzt.')) return
+    setLoading(true)
+    try {
+      await supabase.from('push_subscriptions').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabase.from('responses').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabase.from('reveals_seen').delete().neq('member_id', '00000000-0000-0000-0000-000000000000')
+      await supabase.from('members').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      await fetchData()
+    } catch (e) {
+      console.error('Delete all members error:', e)
+    }
+    setLoading(false)
   }
 
   if (!authed) {
@@ -335,9 +357,20 @@ export default function AdminPage() {
 
       {/* Members */}
       <section className="mb-12">
-        <h2 className="text-xs tracking-[0.3em] uppercase mb-4" style={{ color: '#6b6560' }}>
-          Mitglieder ({members.length})
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xs tracking-[0.3em] uppercase" style={{ color: '#6b6560' }}>
+            Mitglieder ({members.length})
+          </h2>
+          {members.length > 0 && (
+            <button
+              onClick={deleteAllMembers}
+              disabled={loading}
+              className="text-xs tracking-wider uppercase text-red-400 hover:text-red-300 transition-colors disabled:opacity-40"
+            >
+              Alle entfernen ✕
+            </button>
+          )}
+        </div>
         <div className="flex flex-col gap-2">
           {members.map(m => (
             <div
