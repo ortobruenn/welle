@@ -10,13 +10,14 @@ const geminiApiKey = process.env.GEMINI_API_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 const FALLBACK_ECHOES = [
-  'Zwei von euch suchten heute die Ferne, während einer den Anker im Stillen warf.',
-  'Eure Gedanken kreisen umeinander wie Schatten im Zwielicht – nah, doch jeder in seiner eigenen Welt.',
-  'Ein ungesprochener Konsens schwingt zwischen euren Worten. Die Resonanz ist tief, aber verborgen.',
-  'Dort, wo Worte enden, haben eure Spuren heute ein unsichtbares Muster gezeichnet.',
-  'Einer tanzte aus der Reihe, doch gerade dieser Bruch hielt das Gleichgewicht der Welle.',
-  'Ihr blickt aus verschiedenen Fenstern in denselben Himmel. Die Frequenz bleibt synchron.',
-  'Die Kontraste eurer Antworten offenbaren das Geheimnis: Vollständigkeit entsteht nur im Widerspruch.'
+  'Während hier jemand schon im Feierabend-Koma liegt, retten die anderen noch die Welt.',
+  'Unterschiedlicher hätten die Antworten kaum ausfallen können – und genau deshalb funktioniert die Runde.',
+  'Einer tanzt komplett aus der Reihe, der Rest nickt zustimmend. Perfekte Balance.',
+  'Ein fast schon verdächtiger Gleichklang. Entweder herrscht hier Telepathie, oder ihr braucht dringend Kaffee.',
+  'Gleicher Tag, völlig andere Welten in euren Köpfen. Herrlich normal.',
+  'Dort, wo Worte kurz innehalten, treffen sich eure Gedanken ganz ungeplant.',
+  'Halb herrlich absurdes Chaos, halb echter Tiefgang: Die ehrlichste Momentaufnahme des Tages.',
+  'Zwei völlig konträre Blickwinkel – und beide haben auf ihre Art absolut recht.'
 ]
 
 export async function POST(req: Request) {
@@ -85,19 +86,26 @@ export async function POST(req: Request) {
           })
           .join('\n')
 
-        const prompt = `Du bist das uralte, poetische Orakel der Web-App "Welle".
-Die Gruppe (enge Freunde) hat auf folgende Welle geantwortet:
+        const prompt = `Du bist die feinsinnige, schlagfertige und verbindende Stimme der Web-App "Welle".
+Eine Gruppe enger Freunde hat auf folgende Welle geantwortet:
 Frage: "${wave.prompt}"
 Antworten der Freunde:
 ${answersSummary}
 
 Aufgabe:
-Formuliere ein einzelnes, tiefsinniges, geheimnisvolles "Echo der Welle" (exakt 1 bis maximal 2 Sätze).
-Beobachte die kollektive Stimmung, Gegensätze oder verborgene Harmonien.
-Regeln:
-- Nicht kitschig, sondern mysteriös, poetisch, ruhig und treffsicher.
-- Nenne keine Namen direkt, sondern sprich von "Zwei von euch...", "Einer...", "Eure Resonanz...".
-- Antworte NUR mit dem reinen Echo-Satz ohne Anführungszeichen, ohne Einleitung.`
+Formuliere ein einzelnes, treffendes "Echo der Welle" (exakt 1 bis maximal 2 Sätze).
+Spiegle die Gruppendynamik, Kontraste oder verborgene Harmonien wider.
+
+STRENGE REGELN:
+1. TONALITÄT ANTWORT-ADAPTIV:
+   - Passe deinen Tonfall dynamisch an die Antworten an: Sind die Antworten witzig, frech oder alltäglich, formuliere pfiffig, locker, trocken oder humorvoll mit einem Augenzwinkern! Sind die Antworten nachdenklich, sei warm, atmosphärisch und feinfühlig.
+   - Vermeide kitschiges Schwulst-Pathos, Endzeit-Düsternis oder ständige pseudo-mystische Schwere.
+2. KEINE ZAHLENFIXIERUNG:
+   - Erwähne NIEMALS die Zahl "vier" oder Floskeln wie "ihr vier", "alle vier"!
+   - Nenne keine echten Namen, sondern beziehe dich charmant und lebendig auf die Dynamik (z.B. "Während hier jemand...", "Einer tanzt komplett aus der Reihe...", "Gleichstand zwischen Chaos und Tiefsinn...").
+3. FORMAT:
+   - Exakt 1 bis maximal 2 Sätze.
+   - Antworte NUR mit dem reinen Echo-Satz ohne Anführungszeichen, ohne Einleitung.`
 
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiApiKey}`
         const res = await fetch(geminiUrl, {

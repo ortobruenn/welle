@@ -15,6 +15,7 @@ const geminiApiKey = process.env.GEMINI_API_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 // Bunter, vielseitiger Pool aus allen Erlebnis-Formaten inklusive Glitch-Varianten
+// Tenor: abwechslungsreich – mal frech & locker, mal pfiffig & witzig, mal poetisch & atmosphärisch
 export const CURATED_PROMPTS = [
   // ZEICHNEN 🎨
   {
@@ -30,86 +31,104 @@ export const CURATED_PROMPTS = [
     options: null
   },
   {
-    prompt: 'Skizziere kurz die Form einer Wolke, die heute über dir sein könnte.',
-    glitch_prompt: 'Skizziere kurz einen Blitz oder Riss im Himmel.',
+    prompt: 'Kritzle in maximal 10 Sekunden das chaotischste Ding in deinem aktuellen Blickfeld.',
+    glitch_prompt: 'Zeichne die reinste geometrische Ordnung, die dir einfällt.',
+    prompt_type: 'draw',
+    options: null
+  },
+  {
+    prompt: 'Skizziere kurz deine aktuelle Laune als abstraktes Emoji.',
+    glitch_prompt: 'Skizziere die Laune der Person, die dir heute am meisten auf die Nerven ging.',
     prompt_type: 'draw',
     options: null
   },
   
   // FOTO & TEXTUR 📷
   {
-    prompt: 'Finde etwas in deiner unmittelbaren Umgebung, das rot oder rostig ist.',
-    glitch_prompt: 'Finde etwas in deiner Umgebung, das tiefblau, metallisch oder eiskalt wirkt.',
-    prompt_type: 'photo',
-    options: null
-  },
-  {
-    prompt: 'Ein Blick aus deinem nächsten Fenster – zeig uns den Himmel über deiner Stadt.',
+    prompt: 'Ein schneller Schnappschuss aus dem nächsten Fenster – zeig uns den Himmel über dir.',
     glitch_prompt: 'Richte die Kamera direkt auf den Boden oder deine Füße.',
     prompt_type: 'photo',
     options: null
   },
   {
-    prompt: 'Fotografiere eine Textur (Holz, Beton, Stoff, Kaffeeschaum), die du heute berührt hast.',
-    glitch_prompt: 'Fotografiere eine Oberfläche, die extrem glatt oder spiegelnd ist.',
+    prompt: 'Fotografiere das unordentlichste oder absurdeste Detail in deiner Reichweite.',
+    glitch_prompt: 'Fotografiere das ordentlichste, sterilste Ding, das du gerade sehen kannst.',
+    prompt_type: 'photo',
+    options: null
+  },
+  {
+    prompt: 'Zeig uns deinen aktuellen Alltags-Retter: Kaffee, Snack oder Gegenstand des Tages.',
+    glitch_prompt: 'Fotografiere etwas, das du heute am liebsten in den Müll werfen würdest.',
+    prompt_type: 'photo',
+    options: null
+  },
+  {
+    prompt: 'Finde etwas in deiner unmittelbaren Umgebung, das knallig bunt oder rostig ist.',
+    glitch_prompt: 'Finde etwas in deiner Umgebung, das tiefblau, metallisch oder eiskalt wirkt.',
     prompt_type: 'photo',
     options: null
   },
 
   // SPEKTRUM & POLARITÄTEN ⚖️
   {
+    prompt: 'Wie steht dein interner Akku gerade?',
+    glitch_prompt: null,
+    prompt_type: 'spectrum',
+    options: ['120% Tatendrang & Hummeln im Hintern', '2% Energiesparmodus am Ladekabel']
+  },
+  {
+    prompt: 'Dein heutiger Kopf-Zustand:',
+    glitch_prompt: null,
+    prompt_type: 'spectrum',
+    options: ['Alles unter Kontrolle & strukturiert', '20 Tabs offen & Musik dudelt im Hintergrund']
+  },
+  {
     prompt: 'Wo schlägt heute dein inneres Pendel aus?',
     glitch_prompt: null,
     prompt_type: 'spectrum',
-    options: ['Kühler Verstand', 'Blinde Intuition']
+    options: ['Kühler Verstand', 'Bauchgefühl & Spontanität']
   },
   {
-    prompt: 'Welche Energie dominiert deinen Tag?',
+    prompt: 'Feierabend-Vibe für heute:',
     glitch_prompt: null,
     prompt_type: 'spectrum',
-    options: ['Vorwärtsdrang & Tatendrang', 'Stiller Rückzug & Beobachtung']
-  },
-  {
-    prompt: 'Wie fühlt sich die Welt heute um dich herum an?',
-    glitch_prompt: null,
-    prompt_type: 'spectrum',
-    options: ['Dicht & Schnell', 'Weit & Zeitlos']
+    options: ['Raus ins Leben & Leute treffen', 'Couch, Decke & Flugmodus']
   },
 
   // PULS & SYNCHRONITÄT ⏱️
   {
-    prompt: 'Schließe kurz die Augen. Halte den Kreis für genau 7 Sekunden gedrückt – rein nach Gefühl.',
-    glitch_prompt: 'Halte den Kreis für genau 3 Sekunden gedrückt – lass früher los als gedacht.',
+    prompt: 'Kurzer Reset: Schließe die Augen und halte den Kreis für genau 7 Sekunden gedrückt.',
+    glitch_prompt: 'Halte den Kreis für genau 3 Sekunden gedrückt – lass viel früher los als gedacht.',
     prompt_type: 'pulse',
     options: null
   },
 
   // STILLE & ACHTSAMKEIT 🕯️
   {
-    prompt: 'Nimm dir 30 Sekunden absolute Stille. Berühre nichts, atme nur tief ein und aus.',
+    prompt: 'Nimm dir 30 Sekunden absolute Bildschirmpause. Berühre nichts, atme nur tief durch.',
     glitch_prompt: null,
     prompt_type: 'silence',
     options: null
   },
 
-  // KOOPERATIVES RÄTSEL / ENIGMA 🧩
+  // KOOPERATIVES RÄTSEL / ENIGMA 🧩 (Keine Fixierung auf Zahlen oder 'vier'!)
   {
-    prompt: 'Ein altes Siegel liegt zerbrochen vor euch. Setzt eure Zeilen zusammen.',
+    prompt: 'Eine alte Botschaft liegt in Fragmenten vor euch. Setzt eure Zeilen zusammen.',
     glitch_prompt: null,
     prompt_type: 'enigma',
     options: buildEnigmaOptions(
       'KOMPASS',
       [
-        '1. Zeile: Aus vier Winden formt sich der Pfad,',
+        '1. Zeile: Wind und Weite weisen den Pfad,',
         '2. Zeile: Kein Stern verliert, wer den Norden bat.',
         '3. Zeile: Die Nadel zittert im Kupfergehäuse,',
-        '4. Zeile: Sieben Buchstaben weisen die Heimkehr.'
+        '4. Zeile: Sieben Buchstaben führen zur Heimkehr.'
       ],
       'Ein Instrument für Reisende'
     )
   },
   {
-    prompt: 'Die alte Tafel wurde in vier Bruchstücke geteilt. Findet das Lösungswort.',
+    prompt: 'Ein zerbrochenes Rätsel liegt auf dem Tisch. Findet gemeinsam das Lösungswort.',
     glitch_prompt: null,
     prompt_type: 'enigma',
     options: buildEnigmaOptions(
@@ -123,43 +142,73 @@ export const CURATED_PROMPTS = [
       'Täglicher Blick'
     )
   },
-
-  // DILEMMA & TIEFSINNIGE ENTSCHEIDUNG ⚡
   {
-    prompt: 'Wenn du heute eine Erinnerung an diesen Tag für immer konservieren müsstest:',
-    glitch_prompt: 'Wenn du heute eine peinliche oder banale Kleinigkeit sofort auslöschen könntest:',
+    prompt: 'Ein altes Schloss hütet ein Geheimnis. Kombiniert eure Puzzleteile.',
+    glitch_prompt: null,
+    prompt_type: 'enigma',
+    options: buildEnigmaOptions(
+      'SCHLUESSEL',
+      [
+        'Teil 1: Aus kaltem Eisen oder Messing schwer,',
+        'Teil 2: Öffnet Welten und sperrt hinterher,',
+        'Teil 3: Hat Zähne, doch kann niemals beißen,',
+        'Teil 4: Liegt tief in der Tasche auf allen Reisen.'
+      ],
+      'Öffnet Türen'
+    )
+  },
+
+  // DILEMMA & ENTSCHEIDUNG ⚡
+  {
+    prompt: 'Spontanes Gedanken-Dilemma:',
+    glitch_prompt: null,
+    prompt_type: 'choice',
+    options: [
+      '10 Jahre in die Vergangenheit mit heutigem Wissen',
+      '10 Jahre in die Zukunft reisen und sehen, was kommt'
+    ]
+  },
+  {
+    prompt: 'Ehrliche Alltagsbeichte für heute:',
+    glitch_prompt: 'Wähle das Gegenteil deiner wahren Antwort:',
+    prompt_type: 'choice',
+    options: [
+      'Heute schon mindestens einmal hemmungslos prokrastiniert',
+      'Verdächtig diszipliniert und produktiv durchgezogen'
+    ]
+  },
+  {
+    prompt: 'Wenn du heute eine Erinnerung an diesen Tag konservieren müsstest:',
+    glitch_prompt: 'Wenn du heute eine peinliche Kleinigkeit sofort auslöschen könntest:',
     prompt_type: 'choice',
     options: [
       'Ein Geräusch oder ein Lied, das lief',
       'Ein Blick oder ein ungesagtes Wort'
     ]
   },
-  {
-    prompt: 'Was wiegt heute schwerer in deinen Gedanken?',
-    glitch_prompt: null,
-    prompt_type: 'choice',
-    options: [
-      'Was noch vor dir liegt',
-      'Was du bereits hinter dir gelassen hast'
-    ]
-  },
 
-  // FREITEXT & TIEFGANG ✍️
+  // FREITEXT & ALLTAGSIMPULSE ✍️
   {
-    prompt: 'Welcher Gedanke ist dir heute wiederholt durch den Kopf gegangen, ohne dass du ihn eingeladen hast?',
-    glitch_prompt: 'Was ist der absurdeste oder belangloseste Gedanke, den du heute hattest?',
+    prompt: 'Wenn dein heutiger Tag ein Buchtitel oder Netflix-Film wäre – wie würde er heißen?',
+    glitch_prompt: 'Gib deinem Tag den langweiligsten Beamtendeutsch-Titel aller Zeiten.',
     prompt_type: 'text',
     options: null
   },
   {
-    prompt: 'Was hast du heute getan, das niemand gesehen hat?',
-    glitch_prompt: 'Was hast du heute getan, das du lieber ungeschehen machen würdest?',
+    prompt: 'Was ist das Absurdeste, Lustigste oder Banalste, das dir heute passiert ist?',
+    glitch_prompt: 'Erfinde eine winzige, scheinbar glaubhafte Lüge über deinen Tag.',
     prompt_type: 'text',
     options: null
   },
   {
-    prompt: 'Beschreibe mit genau 3 Worten den Raum, in dem du dich gerade befindest.',
-    glitch_prompt: 'Beschreibe mit genau 3 Worten das Gegenteil des Raumes, in dem du dich befindest.',
+    prompt: 'Welcher Gedanke ging dir heute durch den Kopf, ohne dass du ihn eingeladen hast?',
+    glitch_prompt: 'Was ist der bescheuertste Ohrwurm oder Gedankenfetzen, den du heute hattest?',
+    prompt_type: 'text',
+    options: null
+  },
+  {
+    prompt: 'Beschreibe mit genau 3 Worten deine aktuelle Verfassung.',
+    glitch_prompt: 'Beschreibe mit genau 3 Worten das Gegenteil deiner aktuellen Verfassung.',
     prompt_type: 'text',
     options: null
   },
@@ -181,6 +230,25 @@ export const CURATED_PROMPTS = [
         title: 'Entspannter Capybara',
         prompt: 'chill cute cartoon capybara sitting in a warm onsen bath with a small yuzu fruit on head, serene aesthetic',
         imageUrl: 'https://image.pollinations.ai/prompt/chill%20cute%20cartoon%20capybara%20sitting%20in%20a%20warm%20onsen%20bath%20with%20yuzu%20on%20head%2C%20serene%20aesthetic?width=512&height=512&nologo=true&seed=202'
+      }
+    ])
+  },
+  {
+    prompt: 'Wie tickt dein Kopf heute eher?',
+    glitch_prompt: null,
+    prompt_type: 'vibe',
+    options: buildVibeOptions([
+      {
+        id: 'opt_1',
+        title: 'Hyperaktives Eichhörnchen',
+        prompt: 'funny hyperactive cartoon squirrel holding a giant cup of coffee with crazy energetic eyes, vibrant comic illustration',
+        imageUrl: 'https://image.pollinations.ai/prompt/funny%20hyperactive%20cartoon%20squirrel%20holding%20a%20giant%20cup%20of%20coffee%2C%20comic%20illustration?width=512&height=512&nologo=true&seed=303'
+      },
+      {
+        id: 'opt_2',
+        title: 'Verschlafener Panda',
+        prompt: 'cozy sleepy cute cartoon panda wrapped in a soft blanket eating a bamboo leaf, relaxed comic illustration',
+        imageUrl: 'https://image.pollinations.ai/prompt/cozy%20sleepy%20cute%20cartoon%20panda%20wrapped%20in%20a%20blanket%2C%20comic%20illustration?width=512&height=512&nologo=true&seed=404'
       }
     ])
   },
@@ -206,15 +274,15 @@ export async function generateWaveContent(
   const forbiddenTypes = Array.from(new Set(recentTypes.slice(0, 2)))
 
   const ALL_FORMATS = [
-    { type: 'spectrum', desc: 'Philosophische Achse mit 2 prägnanten Polen in "options" (z.B. ["Kühler Verstand", "Blinde Intuition"])' },
-    { type: 'photo', desc: 'Foto-Ausschnitt aus der realen Umgebung (z.B. Blick aus dem Fenster, Textur, Farbe)' },
-    { type: 'draw', desc: 'Minimalistische Finger-Zeichnung auf Canvas' },
-    { type: 'choice', desc: 'Unerwartetes A/B-Dilemma mit 2 Text-Optionen' },
-    { type: 'pulse', desc: '7 Sekunden Atemzug / Kreis gedrückt halten rein nach Gefühl' },
-    { type: 'silence', desc: '30 Sekunden Stille & Achtsamkeit ohne Tastendruck' },
-    { type: 'enigma', desc: 'Kooperatives 4-teiliges poetisches Rätsel ("options": ["__solution__:WORT", "__hint__:Tipp", "Teil 1", "Teil 2", "Teil 3", "Teil 4"])' },
-    { type: 'text', desc: 'Tiefgründiger Gedanke oder Alltagsbeobachtung in Freitext' },
-    { type: 'vibe', desc: 'Humorvolles Bild-Dilemma / Vibe-Check ("Bist du heute eher X oder Y?") mit 2 Cartoon-Charakteren' }
+    { type: 'spectrum', desc: 'Zwei gegensätzliche Pole in "options" (z.B. ["120% Tatendrang", "2% Akku auf der Couch"] oder ["Kühler Kopf", "Bauchgefühl"])' },
+    { type: 'photo', desc: 'Schnappschuss aus dem Hier und Jetzt (z.B. das unordentlichste Eck, heutiger Kaffeestand, Wetter-Blick, Textur)' },
+    { type: 'draw', desc: 'Schnelle Finger-Zeichnung auf Canvas (z.B. ein abstraktes Symbol, blind ein Tier, aktuelle Laune)' },
+    { type: 'choice', desc: 'Knackiges, überraschendes A/B-Dilemma mit 2 prägnanten Optionen' },
+    { type: 'pulse', desc: 'Kurzer Synchro-Moment: Kreis für 7 Sekunden rein nach Gefühl gedrückt halten' },
+    { type: 'silence', desc: '30 Sekunden Bildschirmpause zum kurzen Durchatmen' },
+    { type: 'enigma', desc: 'Kooperatives Worträtsel ("options": ["__solution__:WORT", "__hint__:Tipp", "Zeile 1", "Zeile 2", "Zeile 3", "Zeile 4"]) – niemals Zahlen wie "vier Bruchstücke" im Text erwähnen!' },
+    { type: 'text', desc: 'Spontane Frage als Freitext (mal frech, mal neugierig, mal reflektiert)' },
+    { type: 'vibe', desc: 'Humorvolles Bild-Dilemma / Vibe-Check ("Bist du heute eher X oder Y?") mit 2 lustigen Cartoon-Charakteren' }
   ]
 
   const allowedFormats = ALL_FORMATS.filter(f => !forbiddenTypes.includes(f.type))
@@ -222,21 +290,54 @@ export async function generateWaveContent(
   const memberList = members || []
   const isAnomaly = memberList.length >= 2 && (nextNumber % 3 === 0 || Math.random() < 0.25)
 
-  const systemPrompt = `Du bist die mysteriöse, poetische und verbindende Intelligenz der Web-App "Welle".
-Die Nutzer sind 4 gute Freunde, die zusammen lernen, aber im Alltag getrennt leben.
+  // Dynamischer Stimmungs-Wechsel (Mood Variety)
+  const MOODS = [
+    {
+      vibe: 'Locker, frisch & frech',
+      instruction: 'Formuliere witzig, direkt, alltagsnah und mit feiner Selbstironie. Bring die Freunde zum Schmunzeln! Keine schwere Philosophie, sondern freche Alltags- und Gedankenimpulse.'
+    },
+    {
+      vibe: 'Pfiffig, neugierig & leicht',
+      instruction: 'Formuliere clever, charmant und neugierig. Eine originelle Frage oder ein Gedankenspiel, das sofort Spaß macht, überrascht und leicht von der Hand geht.'
+    },
+    {
+      vibe: 'Warm, stimmungsvoll & poetisch',
+      instruction: 'Formuliere poetisch, atmosphärisch und feinfühlig – aber OHNE kitschigen Schwulst, Pathos oder künstliche Schwere. Echte Wärme und Alltagslyrik statt Endzeitstimmung.'
+    },
+    {
+      vibe: 'Spontan, absurd & verspielt',
+      instruction: 'Formuliere verspielt, überraschend und mit einem kleinen Augenzwinkern. Ein knackiger, leicht schräger Impuls für zwischendurch.'
+    }
+  ]
+  const chosenMood = MOODS[Math.floor(Math.random() * MOODS.length)]
+
+  const systemPrompt = `Du bist die kreative, verbindende Intelligenz der Web-App "Welle".
+Die Nutzer sind eine Gruppe enger Freunde, die gemeinsam ihren Alltag und ihre Gedanken teilen.
 Deine Aufgabe ist es, die NÄCHSTE Welle zu kreieren.
 
-OBERSTE REGEL: FORMAT-ABWECHSLUNG!
-Die letzten Wellen hatten folgende Formate: ${forbiddenTypes.length > 0 ? forbiddenTypes.join(', ') : 'keine'}.
-DIESE FORMATE SIND FÜR DIE NÄCHSTE WELLE STRENG VERBOTEN!
+DEIN TONALER FOKUS FÜR DIESE WELLE:
+👉 ${chosenMood.vibe.toUpperCase()} 👈
+${chosenMood.instruction}
+
+STRENGE REGELN:
+1. KEINE FIXIERUNG AUF DIE ZAHL VIER:
+   - Es ist STRENGSTENS VERBOTEN, die Zahl 4 oder Formulierungen wie "ihr vier", "vier Freunde", "vier Stimmen", "vier Pfade", "vier Ecken" etc. zu verwenden!
+   - Sprich die Gruppe natürlich mit "ihr" oder den Einzelnen mit "du" an. Völlig ohne Zahlen-Mystik.
+2. ABWECHSLUNG IM TENOR (KEIN DAUER-PATHOS):
+   - Vermeide übertrieben schwere, düstere oder pseudo-mystische Floskeln.
+   - Sei frisch, pointiert, lebendig und charmant. Mal locker und frech, mal clever, mal poetisch.
+   - Prompts müssen direkt zünden und leicht verständlich sein. Keine Schachtelsätze.
+3. FORMAT-ABWECHSLUNG:
+   Die letzten Wellen hatten folgende Formate: ${forbiddenTypes.length > 0 ? forbiddenTypes.join(', ') : 'keine'}.
+   DIESE FORMATE SIND FÜR DIE NÄCHSTE WELLE STRENG VERBOTEN!
 
 Wähle zwingend eines der folgenden ERLAUBTEN Formate:
 ${allowedFormats.map(f => `- "${f.type}": ${f.desc}`).join('\n')}
 
 Format-Regeln:
-${isAnomaly ? `- ANOMALIE AKTIV ("Der Flüsterer"): Erzeuge "glitch_prompt" (eine verdrehte, geheime Variante für genau einen Spieler!).` : '- Keine Anomalie: "glitch_prompt" ist null.'}
+${isAnomaly ? `- ANOMALIE AKTIV ("Der Flüsterer"): Erzeuge "glitch_prompt" (eine verdrehte, geheime oder witzige Gegen-Variante für genau einen Spieler!).` : '- Keine Anomalie: "glitch_prompt" ist null.'}
 
-Kontext:
+Kontext bisheriger Wellen:
 ${contextText}
 
 Antworte STRIKT im JSON-Format:
@@ -244,7 +345,7 @@ Antworte STRIKT im JSON-Format:
   "prompt": "Die Hauptfrage / Anweisung an alle",
   "prompt_type": "${allowedFormats.map(f => f.type).join('" | "')}",
   "options": ["Option 1", "Option 2"] | null,
-  "glitch_prompt": "Verdrehte geheime Variante für den Flüsterer" | null
+  "glitch_prompt": "Verdrehte Variante für den Flüsterer" | null
 }`
 
   let parsed: any = null

@@ -459,7 +459,7 @@ export default function JoinScreen({ onJoin }: Props) {
             Dein Knotenpunkt
           </h2>
           <p className="text-xs text-[#8a847d] leading-relaxed mb-8">
-            Unter welchem Namen schwingst du im Zirkel der Vier?
+            Unter welchem Namen schwingst du in der Runde mit?
           </p>
 
           <div className="w-full flex flex-col gap-6">
