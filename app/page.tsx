@@ -120,11 +120,11 @@ export default function Home() {
             .eq('id', currentWave.id)
           setAppState('cooldown')
 
-          // Nächste Welle sofort im Hintergrund vorbereiten, damit sie bei Timer = 0 verzögerungsfrei bereitsteht!
+          // Nächste Welle sofort im Hintergrund vorbereiten & serverseitig Auto-Trigger aktivieren!
           fetch('/api/generate-wave', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prepareOnly: true, waveId: currentWave.id }),
+            body: JSON.stringify({ prepareOnly: true, waveId: currentWave.id, nextWaveAt: nextWaveDate }),
           }).catch(err => console.warn('Pre-generation error:', err))
         } else {
           // Dieser Nutzer wartet, bis die anderen es auch gelesen haben
@@ -163,7 +163,7 @@ export default function Home() {
           fetch('/api/generate-wave', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prepareOnly: true, waveId: currentWave.id }),
+            body: JSON.stringify({ prepareOnly: true, waveId: currentWave.id, nextWaveAt: currentWave.next_wave_at }),
           }).catch(() => {})
         }
         setAppState('cooldown')
