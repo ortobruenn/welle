@@ -236,6 +236,11 @@ export default function JoinScreen({ onJoin }: Props) {
   const handleFinishJoin = async (enablePush: boolean) => {
     setSubmitting(true)
     try {
+      if (enablePush && typeof window !== 'undefined' && 'Notification' in window) {
+        try {
+          await Notification.requestPermission()
+        } catch {}
+      }
       await onJoin(name.trim(), enablePush)
     } catch {
       setNameError('Einweihung fehlgeschlagen. Bitte erneut versuchen.')

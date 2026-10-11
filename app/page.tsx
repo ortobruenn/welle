@@ -244,11 +244,9 @@ export default function Home() {
     setMember(memberData)
     await fetchMembers()
     if (enablePush) {
-      try {
-        await subscribeToPush(memberId)
-      } catch (err) {
+      subscribeToPush(memberId).catch((err) => {
         console.warn('Push subscribe error during join:', err)
-      }
+      })
     }
     await loadAppState(memberId)
   }

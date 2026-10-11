@@ -23,24 +23,39 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 }
 
 export async function subscribeToPush(memberId: string): Promise<boolean> {
-  if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-    console.warn('[Push] Push messaging is not supported in this browser.')
-    return false
-  }
+  if (typeof window === 'undefined') return false
 
   const vapidPublicKey =
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
     'BP74Vf6fz3p_eAlhZWAMPkS0UU-PS8WYfDCZUesMaTKOZqKXtXyAafKsnpGFgNggxuafj4Q67BF2ZpNRJDn5N2I'
-  if (!vapidPublicKey) {
-    console.warn('[Push] NEXT_PUBLIC_VAPID_PUBLIC_KEY is not set.')
-    return false
-  }
 
   try {
-    const registration = await navigator.serviceWorker.ready
+    // 1. Zuerst sofort im User-Gesture die Berechtigung anfragen
+    if (!('Notification' in window)) {
+      console.warn('[Push] Notification API not supported')
+      return false
+    }
+
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') {
-      console.log('[Push] Notification permission denied.')
+      console.log('[Push] Notification permission denied:', permission)
+      return false
+    }
+
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.warn('[Push] PushManager not supported')
+      return false
+    }
+
+    // 2. Service Worker registrieren falls noch nicht aktiv
+    await registerServiceWorker()
+
+    // 3. Mit Timeout auf ready warten (verhindert Hänger)
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))
+    const registration = (await Promise.race([navigator.serviceWorker.ready, timeoutPromise])) as ServiceWorkerRegistration | null
+
+    if (!registration || !registration.pushManager) {
+      console.warn('[Push] ServiceWorker ready timed out')
       return false
     }
 
@@ -54,7 +69,7 @@ export async function subscribeToPush(memberId: string): Promise<boolean> {
       })
     }
 
-    // Send to backend
+    // 4. An Supabase Backend schicken
     const res = await fetch('/api/push/subscribe', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
