@@ -118,29 +118,45 @@ export default function SpectrumSlider({ poleA, poleB, onComplete }: Props) {
           </div>
         </div>
 
-        {/* Extremity Labels */}
+        {/* Extremity Labels (Clickable to jump) */}
         <div className="flex justify-between items-center text-xs tracking-wider uppercase text-[#6b6560] font-light">
-          <span
-            className={`transition-colors duration-200 max-w-[45%] text-left ${
+          <button
+            type="button"
+            onClick={() => setValue(15)}
+            className={`transition-colors duration-200 max-w-[45%] text-left hover:text-[#c8a065] cursor-pointer ${
               value < 40 ? 'text-[#e8e4de] font-medium' : ''
             }`}
           >
             ← {poleA}
-          </span>
-          <span
-            className={`transition-colors duration-200 max-w-[45%] text-right ${
+          </button>
+          <button
+            type="button"
+            onClick={() => setValue(85)}
+            className={`transition-colors duration-200 max-w-[45%] text-right hover:text-[#c8a065] cursor-pointer ${
               value > 60 ? 'text-[#e8e4de] font-medium' : ''
             }`}
           >
             {poleB} →
-          </span>
+          </button>
         </div>
+
+        {/* Native hidden range input for full accessibility */}
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={value}
+          onChange={(e) => setValue(Number(e.target.value))}
+          className="sr-only"
+          aria-label={`${poleA} bis ${poleB}`}
+        />
       </div>
 
       {/* Confirm Button */}
       <button
+        type="button"
         onClick={handleSubmit}
-        className="w-full py-4 text-xs tracking-[0.25em] uppercase border border-[#c8a065] text-[#c8a065] hover:bg-[#c8a065]/10 transition-colors rounded-sm cursor-pointer mt-4"
+        className="w-full py-4 text-xs tracking-[0.25em] uppercase border border-[#c8a065] text-[#c8a065] hover:bg-[#c8a065]/10 active:scale-98 transition-all rounded-sm cursor-pointer mt-4"
       >
         Position festlegen →
       </button>
