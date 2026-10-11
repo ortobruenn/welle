@@ -234,11 +234,18 @@ export default function JoinScreen({ onJoin }: Props) {
   }
 
   const handleFinishJoin = async (enablePush: boolean) => {
+    if (submitting) return
     setSubmitting(true)
     try {
       if (enablePush && typeof window !== 'undefined' && 'Notification' in window) {
         try {
-          await Notification.requestPermission()
+          const req = Notification.requestPermission()
+          if (req && typeof req.then === 'function') {
+            await Promise.race([
+              req,
+              new Promise((resolve) => setTimeout(resolve, 800)),
+            ])
+          }
         } catch {}
       }
       await onJoin(name.trim(), enablePush)
@@ -505,15 +512,15 @@ export default function JoinScreen({ onJoin }: Props) {
             <button
               onClick={() => handleFinishJoin(true)}
               disabled={submitting}
-              className="w-full py-4 text-xs tracking-[0.25em] uppercase bg-[#c8a065] text-[#0a0a0a] rounded font-semibold transition-all shadow-[0_0_20px_rgba(200,160,101,0.3)] hover:opacity-90 active:scale-95 cursor-pointer"
+              className="w-full py-4 text-xs tracking-[0.25em] uppercase bg-[#c8a065] text-[#0a0a0a] rounded font-semibold transition-all shadow-[0_0_20px_rgba(200,160,101,0.3)] hover:opacity-90 active:scale-95 disabled:opacity-75 cursor-pointer"
             >
-              {submitting ? '···' : 'Signal empfangen (Push an) →'}
+              {submitting ? 'Verbinde mit dem Zirkel...' : 'Signal empfangen (Push an) →'}
             </button>
 
             <button
               onClick={() => handleFinishJoin(false)}
               disabled={submitting}
-              className="py-2 text-xs tracking-[0.2em] uppercase text-[#6b6560] hover:text-[#a09990] transition-colors cursor-pointer"
+              className="py-2 text-xs tracking-[0.2em] uppercase text-[#6b6560] hover:text-[#a09990] transition-colors disabled:opacity-30 cursor-pointer"
             >
               Später einrichten →
             </button>

@@ -36,9 +36,23 @@ export async function subscribeToPush(memberId: string): Promise<boolean> {
       return false
     }
 
-    const permission = await Notification.requestPermission()
+    let permission = Notification.permission
     if (permission !== 'granted') {
-      console.log('[Push] Notification permission denied:', permission)
+      try {
+        const req = Notification.requestPermission()
+        if (req && typeof req.then === 'function') {
+          permission = await Promise.race([
+            req,
+            new Promise<NotificationPermission>((resolve) =>
+              setTimeout(() => resolve(Notification.permission), 1500)
+            ),
+          ])
+        }
+      } catch {}
+    }
+
+    if (permission !== 'granted') {
+      console.log('[Push] Notification permission not granted:', permission)
       return false
     }
 

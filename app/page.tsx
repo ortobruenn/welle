@@ -166,6 +166,7 @@ export default function Home() {
         if (params.has('reset')) {
           localStorage.removeItem('welle_member_id')
           localStorage.removeItem('welle_member_name')
+          window.history.replaceState({}, '', window.location.pathname)
           setMember(null)
           setAppState('join')
           return
@@ -236,19 +237,41 @@ export default function Home() {
   }, [member, loadAppState, fetchMembers])
 
   const handleJoin = async (name: string, enablePush?: boolean) => {
-    const memberId = crypto.randomUUID()
-    await supabase.from('members').insert({ id: memberId, name })
+    setAppState('loading')
+    const memberId =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : 'm_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36)
+
+    try {
+      await supabase.from('members').insert({ id: memberId, name })
+    } catch (e) {
+      console.warn('Member insert warning:', e)
+    }
+
     localStorage.setItem('welle_member_id', memberId)
     localStorage.setItem('welle_member_name', name)
     const memberData: Member = { id: memberId, name, created_at: new Date().toISOString() }
     setMember(memberData)
-    await fetchMembers()
+
+    if (typeof window !== 'undefined' && window.location.search) {
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+
+    fetchMembers().catch(() => {})
+
     if (enablePush) {
       subscribeToPush(memberId).catch((err) => {
         console.warn('Push subscribe error during join:', err)
       })
     }
-    await loadAppState(memberId)
+
+    try {
+      await loadAppState(memberId)
+    } catch (err) {
+      console.error('Error loading app state after join:', err)
+      setAppState('wave')
+    }
   }
 
   const handleSubmit = async (content: string) => {
