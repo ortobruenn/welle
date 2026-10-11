@@ -1,6 +1,7 @@
 'use client'
 
 import type { Wave, Member, WaveResponse } from '@/lib/types'
+import PushNotificationPrompt from '@/components/PushNotificationPrompt'
 
 interface Props {
   wave: Wave
@@ -112,6 +113,10 @@ export default function WaitingScreen({ wave, responses, totalMembers, userRespo
             </p>
           )}
         </div>
+      )}
+
+      {userResponse && (
+        <PushNotificationPrompt memberId={userResponse.member_id} className="mt-6" />
       )}
 
       {/* Wave info */}

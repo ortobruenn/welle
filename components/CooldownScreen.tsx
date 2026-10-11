@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import type { Wave } from '@/lib/types'
+import PushNotificationPrompt from '@/components/PushNotificationPrompt'
 
 interface Props {
   wave: Wave | null
+  memberId?: string
   onWaveReady: () => void
 }
 
@@ -18,7 +20,7 @@ function getTimeLeft(nextWaveAt: string | null): { hours: number; minutes: numbe
   return { hours, minutes, seconds, total: diff }
 }
 
-export default function CooldownScreen({ wave, onWaveReady }: Props) {
+export default function CooldownScreen({ wave, memberId, onWaveReady }: Props) {
   const [timeLeft, setTimeLeft] = useState(() => getTimeLeft(wave?.next_wave_at || null))
 
   useEffect(() => {
@@ -95,6 +97,10 @@ export default function CooldownScreen({ wave, onWaveReady }: Props) {
             die nächste welle wird vorbereitet
           </p>
         </div>
+      )}
+
+      {memberId && (
+        <PushNotificationPrompt memberId={memberId} className="mt-10" />
       )}
 
       <p

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { extractEcho, attachEchoToOptions } from '@/lib/mystery'
+import { sendPushToMembers } from '@/lib/pushServer'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -113,6 +114,20 @@ Regeln:
       .from('waves')
       .update({ options: updatedOptions })
       .eq('id', waveId)
+
+    // Web Push: Enthüllung an alle Mitglieder melden
+    try {
+      await sendPushToMembers({
+        payload: {
+          title: 'Welle enthüllt ∿',
+          body: 'Alle haben geantwortet! Sieh dir an, was entstanden ist.',
+          url: '/',
+          tag: `reveal-${waveId}`,
+        },
+      })
+    } catch (pushErr) {
+      console.warn('[Push] Failed to dispatch reveal push:', pushErr)
+    }
 
     return NextResponse.json({ success: true, echo: synthesizedEcho })
   } catch (error: any) {

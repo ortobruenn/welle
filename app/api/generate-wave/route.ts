@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { attachGlitchToOptions, buildEnigmaOptions } from '@/lib/mystery'
+import { sendPushToMembers } from '@/lib/pushServer'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -303,6 +304,20 @@ Gib AUSSCHLIESSLICH valides JSON zurück:
       .single()
 
     if (insertError) throw insertError
+
+    // Web Push an alle Mitglieder senden
+    try {
+      await sendPushToMembers({
+        payload: {
+          title: `Welle ${nextNumber} ist da ∿`,
+          body: parsed.prompt,
+          url: '/',
+          tag: `wave-${newWave.id}`,
+        },
+      })
+    } catch (pushErr) {
+      console.warn('[Push] Failed to dispatch push for new wave:', pushErr)
+    }
 
     return NextResponse.json({ success: true, wave: newWave })
   } catch (error: any) {

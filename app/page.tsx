@@ -313,6 +313,7 @@ export default function Home() {
     return (
       <CooldownScreen
         wave={wave}
+        memberId={member?.id}
         onWaveReady={() => member && loadAppState(member.id)}
       />
     )

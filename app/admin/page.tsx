@@ -23,6 +23,23 @@ export default function AdminPage() {
   const [newPrompt, setNewPrompt] = useState('')
   const [newType, setNewType] = useState<Wave['prompt_type']>('text')
   const [newOptions, setNewOptions] = useState('')
+  const [pushStatus, setPushStatus] = useState('')
+
+  const sendTestPush = async () => {
+    setPushStatus('Sende...')
+    try {
+      const res = await fetch('/api/push/test', { method: 'POST' })
+      const data = await res.json()
+      if (data.success) {
+        setPushStatus(`✓ Gesendet (${data.sent} Empfänger, ${data.failed} Fehler)`)
+      } else {
+        setPushStatus(`Fehler: ${data.error}`)
+      }
+    } catch (err: any) {
+      setPushStatus(`Fehler: ${err.message}`)
+    }
+    setTimeout(() => setPushStatus(''), 5000)
+  }
 
   const fetchData = useCallback(async () => {
     const [wavesRes, membersRes] = await Promise.all([
@@ -252,9 +269,24 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen px-6 py-12 max-w-2xl mx-auto" style={{ background: '#0a0a0a', color: '#e8e4de' }}>
-      <div className="flex items-center gap-4 mb-12">
-        <span className="font-display text-3xl" style={{ color: '#c8a065' }}>∿</span>
-        <h1 className="text-lg tracking-[0.2em] uppercase" style={{ color: '#6b6560' }}>Welle Admin</h1>
+      <div className="flex items-center justify-between mb-12">
+        <div className="flex items-center gap-4">
+          <span className="font-display text-3xl" style={{ color: '#c8a065' }}>∿</span>
+          <h1 className="text-lg tracking-[0.2em] uppercase" style={{ color: '#6b6560' }}>Welle Admin</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          {pushStatus && (
+            <span className="text-xs" style={{ color: '#c8a065' }}>
+              {pushStatus}
+            </span>
+          )}
+          <button
+            onClick={sendTestPush}
+            className="text-xs tracking-[0.2em] uppercase px-3 py-1.5 border border-[#c8a065]/30 hover:border-[#c8a065] text-[#c8a065] rounded transition-colors"
+          >
+            Test-Push ∿
+          </button>
+        </div>
       </div>
 
       {/* Members */}
