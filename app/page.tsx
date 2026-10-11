@@ -34,6 +34,23 @@ export default function Home() {
       .limit(1)
 
     if (!waves || waves.length === 0) {
+      if (!isGeneratingWaveRef.current) {
+        isGeneratingWaveRef.current = true
+        try {
+          await fetch('/api/generate-wave', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ force: true }),
+          })
+          await loadAppState(memberId)
+          return
+        } catch (e) {
+          console.error('Error generating initial wave:', e)
+        } finally {
+          isGeneratingWaveRef.current = false
+        }
+      }
+      setWave(null)
       setAppState('cooldown')
       return
     }
@@ -295,7 +312,7 @@ export default function Home() {
   if (appState === 'cooldown') {
     return (
       <CooldownScreen
-        wave={wave!}
+        wave={wave}
         onWaveReady={() => member && loadAppState(member.id)}
       />
     )

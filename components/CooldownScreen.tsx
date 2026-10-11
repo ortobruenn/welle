@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import type { Wave } from '@/lib/types'
 
 interface Props {
-  wave: Wave
+  wave: Wave | null
   onWaveReady: () => void
 }
 
@@ -19,9 +19,11 @@ function getTimeLeft(nextWaveAt: string | null): { hours: number; minutes: numbe
 }
 
 export default function CooldownScreen({ wave, onWaveReady }: Props) {
-  const [timeLeft, setTimeLeft] = useState(() => getTimeLeft(wave.next_wave_at))
+  const [timeLeft, setTimeLeft] = useState(() => getTimeLeft(wave?.next_wave_at || null))
 
   useEffect(() => {
+    if (!wave?.next_wave_at) return
+
     const interval = setInterval(() => {
       const tl = getTimeLeft(wave.next_wave_at)
       setTimeLeft(tl)
@@ -31,9 +33,31 @@ export default function CooldownScreen({ wave, onWaveReady }: Props) {
       }
     }, 1000)
     return () => clearInterval(interval)
-  }, [wave.next_wave_at, onWaveReady])
+  }, [wave?.next_wave_at, onWaveReady])
 
   const pad = (n: number) => String(n).padStart(2, '0')
+
+  if (!wave) {
+    return (
+      <div
+        className="min-h-screen flex flex-col items-center justify-center px-8"
+        style={{ background: '#0a0a0a' }}
+      >
+        <div
+          className="font-display text-5xl font-light mb-8 animate-breathe"
+          style={{ color: '#c8a065' }}
+        >
+          ∿
+        </div>
+        <p className="text-sm tracking-[0.25em] uppercase text-center mb-3" style={{ color: '#e8e4de' }}>
+          Die erste Welle sammelt sich
+        </p>
+        <p className="text-xs tracking-[0.25em] uppercase text-center" style={{ color: '#6b6560' }}>
+          Gleich beginnt der erste Impuls...
+        </p>
+      </div>
+    )
+  }
 
   const isWaiting = !wave.next_wave_at || timeLeft.total > 0
 
