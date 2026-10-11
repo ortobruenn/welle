@@ -18,6 +18,7 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
   const [selected, setSelected] = useState<string | null>(null)
   const [mediaContent, setMediaContent] = useState<string>('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const handleSubmit = async (overrideContent?: string) => {
     let content = overrideContent
 
@@ -29,8 +30,19 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
 
     if (!content) return
     setLoading(true)
-    await onSubmit(content)
+    setError(null)
+    try {
+      await onSubmit(content)
+    } catch (err) {
+      console.error('Failed to submit wave response:', err)
+      setError('Failed to submit response. Please try again.')
+    }
     setLoading(false)
+  }
+
+  const handleSubmitClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    handleSubmit()
   }
 
   return (
@@ -64,6 +76,12 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
               autoFocus
               value={answer}
               onChange={e => setAnswer(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSubmit()
+                }
+              }}
               rows={wave.prompt_type === 'chain' ? 1 : 3}
               maxLength={wave.prompt_type === 'chain' ? 40 : 300}
               className="w-full bg-transparent border-b resize-none py-3 text-center text-lg leading-relaxed focus:outline-none"
@@ -131,7 +149,7 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
       {['text', 'choice', 'draw', 'photo', 'chain'].includes(wave.prompt_type) && (
         <div className="animate-fade-up mt-8" style={{ animationDelay: '450ms' }}>
           <button
-            onClick={() => handleSubmit()}
+            onClick={handleSubmitClick}
             disabled={
               loading ||
               (wave.prompt_type === 'choice' && !selected) ||
