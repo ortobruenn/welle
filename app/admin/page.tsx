@@ -133,8 +133,37 @@ export default function AdminPage() {
 
   const deleteWave = async (waveId: string) => {
     if (!confirm('Welle löschen?')) return
-    await supabase.from('waves').delete().eq('id', waveId)
-    await fetchData()
+    setLoading(true)
+    try {
+      await supabase.from('responses').delete().eq('wave_id', waveId)
+      await supabase.from('reveals_seen').delete().eq('wave_id', waveId)
+      await supabase.from('waves').delete().eq('id', waveId)
+      await fetchData()
+    } catch (e) {
+      console.error('Delete wave error:', e)
+    }
+    setLoading(false)
+  }
+
+  const deleteAllWaves = async () => {
+    if (!confirm(`Möchtest du wirklich ALLE ${waves.length} Wellen und alle zugehörigen Antworten löschen?`)) return
+    setLoading(true)
+    try {
+      const waveIds = waves.map(w => w.id)
+      if (waveIds.length > 0) {
+        await supabase.from('responses').delete().in('wave_id', waveIds)
+        await supabase.from('reveals_seen').delete().in('wave_id', waveIds)
+        await supabase.from('waves').delete().in('id', waveIds)
+      }
+      // Safety sweep in case of any orphaned records
+      await supabase.from('responses').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabase.from('reveals_seen').delete().neq('wave_id', '00000000-0000-0000-0000-000000000000')
+      await supabase.from('waves').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      await fetchData()
+    } catch (e) {
+      console.error('Delete all waves error:', e)
+    }
+    setLoading(false)
   }
 
   const deleteMember = async (memberId: string) => {
@@ -321,9 +350,20 @@ export default function AdminPage() {
 
       {/* Waves */}
       <section>
-        <h2 className="text-xs tracking-[0.3em] uppercase mb-4" style={{ color: '#6b6560' }}>
-          Wellen
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xs tracking-[0.3em] uppercase" style={{ color: '#6b6560' }}>
+            Wellen ({waves.length})
+          </h2>
+          {waves.length > 0 && (
+            <button
+              onClick={deleteAllWaves}
+              disabled={loading}
+              className="text-xs tracking-[0.2em] uppercase py-1.5 px-3 border border-red-900/50 text-red-400 hover:bg-red-950/40 rounded transition-colors disabled:opacity-30 cursor-pointer"
+            >
+              🗑️ Alle Wellen löschen
+            </button>
+          )}
+        </div>
         <div className="flex flex-col gap-4">
           {waves.map(w => (
             <div
