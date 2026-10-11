@@ -61,6 +61,14 @@ export default function Home() {
           .from('waves')
           .update({ status: 'reveal', revealed_at: new Date().toISOString() })
           .eq('id', currentWave.id)
+
+        // Mystisches Echo der Welle im Hintergrund anstoßen
+        fetch('/api/synthesize-echo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ waveId: currentWave.id }),
+        }).catch(err => console.warn('Echo synthesis error:', err))
+
         setAppState('reveal')
       } else {
         setAppState(myResponse ? 'waiting' : 'wave')
@@ -256,6 +264,7 @@ export default function Home() {
         wave={wave}
         responses={responses}
         members={members}
+        currentMember={member}
         onComplete={async () => {
           if (!member) return
           // Speichere, dass dieser Nutzer den Reveal gesehen hat

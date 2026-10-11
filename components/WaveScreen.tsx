@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { Wave, Member } from '@/lib/types'
+import { extractGlitch, cleanOptions } from '@/lib/mystery'
 import DrawCanvas from './DrawCanvas'
 import PhotoCapture from './PhotoCapture'
 import PulseTouch from './PulseTouch'
@@ -20,6 +21,12 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
   const [mediaContent, setMediaContent] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const glitch = extractGlitch(wave.options)
+  const isGlitchTarget = glitch?.memberId === member.id
+  const displayPrompt = isGlitchTarget ? glitch.prompt : wave.prompt
+  const choices = cleanOptions(wave.options)
+
   const handleSubmit = async (overrideContent?: string) => {
     let content = overrideContent
 
@@ -61,13 +68,25 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
         </span>
       </div>
 
+      {/* Secret Anomaly Notice (if this member received the whisper frequency) */}
+      {isGlitchTarget && (
+        <div className="mb-6 flex justify-center animate-fade-in">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[#c8a065]/50 bg-[#c8a065]/10 backdrop-blur-sm shadow-[0_0_15px_rgba(200,160,101,0.2)]">
+            <span className="text-xs text-[#c8a065] animate-pulse">⚡</span>
+            <span className="text-[10px] tracking-[0.25em] uppercase text-[#c8a065] font-medium">
+              Geheime Frequenz · Nur du empfängst diesen Impuls
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Prompt */}
       <div className="flex-1 flex flex-col justify-center items-center text-center">
         <p
           className="font-display text-2xl md:text-3xl font-light leading-snug animate-fade-up mb-10 text-center"
           style={{ color: '#e8e4de', animationDelay: '150ms' }}
         >
-          {wave.prompt}
+          {displayPrompt}
         </p>
 
         {/* 1. TEXT */}
@@ -97,9 +116,9 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
         )}
 
         {/* 2. CHOICE / DILEMMA */}
-        {wave.prompt_type === 'choice' && wave.options && (
+        {wave.prompt_type === 'choice' && choices && (
           <div className="flex flex-col gap-3 w-full animate-fade-up" style={{ animationDelay: '300ms' }}>
-            {wave.options.map((opt, i) => (
+            {choices.map((opt, i) => (
               <button
                 key={i}
                 onClick={() => setSelected(opt)}
@@ -135,8 +154,8 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
         {wave.prompt_type === 'spectrum' && (
           <div className="animate-fade-up w-full flex justify-center" style={{ animationDelay: '300ms' }}>
             <SpectrumSlider
-              poleA={wave.options?.[0] || 'Pol A'}
-              poleB={wave.options?.[1] || 'Pol B'}
+              poleA={choices?.[0] || 'Pol A'}
+              poleB={choices?.[1] || 'Pol B'}
               onComplete={(payload) => handleSubmit(payload)}
             />
           </div>
@@ -157,6 +176,10 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
         )}
       </div>
 
+      {error && (
+        <p className="text-red-400 text-xs text-center mt-3 animate-fade-in">{error}</p>
+      )}
+
       {/* Submit button (nur nötig für Text, Choice, Draw, Photo) */}
       {['text', 'choice', 'draw', 'photo'].includes(wave.prompt_type) && (
         <div className="animate-fade-up mt-8" style={{ animationDelay: '450ms' }}>
@@ -168,7 +191,7 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
               (wave.prompt_type === 'text' && !answer.trim()) ||
               ((wave.prompt_type === 'draw' || wave.prompt_type === 'photo') && !mediaContent)
             }
-            className="w-full py-5 text-sm tracking-[0.25em] uppercase transition-opacity hover:opacity-70 disabled:opacity-20"
+            className="w-full py-5 text-sm tracking-[0.25em] uppercase transition-opacity hover:opacity-70 disabled:opacity-20 border border-[#c8a065]/40 hover:border-[#c8a065]"
             style={{ color: '#c8a065' }}
           >
             {loading ? '···' : 'Senden →'}

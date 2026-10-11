@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Wave, Member, WaveResponse } from '@/lib/types'
+import { extractEcho, extractGlitch, attachGlitchToOptions } from '@/lib/mystery'
 
 const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE || 'admin'
 
@@ -89,6 +90,28 @@ export default function AdminPage() {
       prompt,
       prompt_type: type,
       options: options || null,
+      status: 'active',
+    })
+    await fetchData()
+    setLoading(false)
+  }
+
+  const handleQuickGlitchCreate = async () => {
+    if (members.length === 0) return
+    setLoading(true)
+    const nextNumber = waves.length > 0 ? Math.max(...waves.map(w => w.number)) + 1 : 1
+    const target = members[Math.floor(Math.random() * members.length)]
+    const glitchOptions = attachGlitchToOptions(
+      null,
+      target.id,
+      target.name,
+      'Zeichne ein Symbol für das genaue Gegenteil deines heutigen Tages.'
+    )
+    await supabase.from('waves').insert({
+      number: nextNumber,
+      prompt: 'Zeichne mit einem Strich ein Symbol, das deinen heutigen Tag einfängt.',
+      prompt_type: 'draw',
+      options: glitchOptions,
       status: 'active',
     })
     await fetchData()
@@ -276,6 +299,14 @@ export default function AdminPage() {
             <span className="block font-medium text-[#e8e4de] mb-1">🧘 Stille-Welle</span>
             <span className="text-[#6b6560] block text-[11px]">20s Atem-Timer</span>
           </button>
+          <button
+            onClick={handleQuickGlitchCreate}
+            disabled={loading || members.length === 0}
+            className="p-3 text-left border border-[#c8a065]/40 hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d] col-span-2 disabled:opacity-40"
+          >
+            <span className="block font-medium text-[#c8a065] mb-1">⚡ Asymmetrische Glitch-Welle (Flüsterer)</span>
+            <span className="text-[#6b6560] block text-[11px]">Gibt 1 zufälligen Mitglied heimlich eine gespiegelte Skizzen-Aufgabe</span>
+          </button>
         </div>
       </section>
 
@@ -395,9 +426,21 @@ export default function AdminPage() {
                 </span>
               </div>
 
-              <p className="text-sm mb-4 leading-relaxed" style={{ color: '#e8e4de' }}>
+              <p className="text-sm mb-3 leading-relaxed" style={{ color: '#e8e4de' }}>
                 {w.prompt}
               </p>
+
+              {extractGlitch(w.options) && (
+                <div className="text-xs text-[#c8a065] mb-3 bg-[#c8a065]/10 border border-[#c8a065]/30 px-2.5 py-1.5 rounded">
+                  ⚡ <strong>Glitch für {extractGlitch(w.options)?.memberName || 'Mitglied'}:</strong> „{extractGlitch(w.options)?.prompt}“
+                </div>
+              )}
+
+              {extractEcho(w.options) && (
+                <div className="text-xs text-[#a09990] italic mb-3 border-l-2 border-[#c8a065] pl-2.5 py-0.5">
+                  🔮 <strong>Orakel-Echo:</strong> „{extractEcho(w.options)}“
+                </div>
+              )}
 
               <div className="flex gap-4 flex-wrap">
                 {w.status === 'active' && (

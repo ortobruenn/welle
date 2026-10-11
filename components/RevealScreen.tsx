@@ -2,74 +2,138 @@
 
 import { useState, useEffect } from 'react'
 import type { Wave, Member, WaveResponse } from '@/lib/types'
+import { extractEcho, extractGlitch, cleanOptions } from '@/lib/mystery'
 
 interface Props {
   wave: Wave
   responses: WaveResponse[]
   members: Member[]
+  currentMember?: Member | null
   onComplete: () => void
 }
 
-export default function RevealScreen({ wave, responses, members, onComplete }: Props) {
-  const [visibleCount, setVisibleCount] = useState(0)
-  const [done, setDone] = useState(false)
-  const [lightboxImg, setLightboxImg] = useState<string | null>(null)
-
+export default function RevealScreen({
+  wave,
+  responses,
+  members,
+  currentMember,
+  onComplete,
+}: Props) {
   const isPulse = wave.prompt_type === 'pulse'
   const isSilence = wave.prompt_type === 'silence'
   const isSpectrum = wave.prompt_type === 'spectrum'
+  const supportsBlindGuessing = !isPulse && !isSilence && !isSpectrum && responses.length > 1
+
+  // Mystery Guessing state
+  const [isUnveiled, setIsUnveiled] = useState(!supportsBlindGuessing)
+  const [guesses, setGuesses] = useState<Record<string, string>>({}) // responseId -> memberId
+  const [lightboxImg, setLightboxImg] = useState<string | null>(null)
+
+  // Oracle Echo state
+  const [echo, setEcho] = useState<string | null>(extractEcho(wave.options))
+  const [loadingEcho, setLoadingEcho] = useState(false)
+
+  // Glitch anomaly
+  const glitch = extractGlitch(wave.options)
 
   useEffect(() => {
-    // For pulse, silence or spectrum, show after a brief atmospheric delay
-    if (isPulse || isSilence || isSpectrum) {
-      const timer = setTimeout(() => setDone(true), 1600)
-      return () => clearTimeout(timer)
+    if (!echo) {
+      setLoadingEcho(true)
+      fetch('/api/synthesize-echo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ waveId: wave.id }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data?.echo) setEcho(data.echo)
+        })
+        .catch(err => console.warn('Echo fetch error:', err))
+        .finally(() => setLoadingEcho(false))
     }
-
-    // Reveal one response at a time for text, photo, draw, choice
-    if (visibleCount < responses.length) {
-      const timer = setTimeout(() => {
-        setVisibleCount(v => v + 1)
-      }, visibleCount === 0 ? 800 : 1300)
-      return () => clearTimeout(timer)
-    } else if (visibleCount >= responses.length && responses.length > 0) {
-      const timer = setTimeout(() => setDone(true), 1200)
-      return () => clearTimeout(timer)
-    }
-  }, [visibleCount, responses.length, isPulse, isSilence, isSpectrum])
+  }, [wave.id, echo])
 
   const getMemberName = (memberId: string) => {
     const m = members.find(m => m.id === memberId)
     return m?.name || '?'
   }
 
+  // Other members available to guess (excluding current user)
+  const otherMembers = members.filter(m => m.id !== currentMember?.id)
+
+  // Calculate guessing stats
+  const calculateScore = () => {
+    const guessableResponses = responses.filter(r => r.member_id !== currentMember?.id)
+    if (guessableResponses.length === 0) return null
+
+    let correct = 0
+    let attempted = 0
+    guessableResponses.forEach(r => {
+      const g = guesses[r.id]
+      if (g) {
+        attempted++
+        if (g === r.member_id) correct++
+      }
+    })
+
+    return { correct, attempted, total: guessableResponses.length }
+  }
+
+  const score = isUnveiled && supportsBlindGuessing ? calculateScore() : null
+
   return (
     <div
-      className="min-h-screen flex flex-col px-6 md:px-8 py-14 max-w-lg mx-auto"
+      className="min-h-screen flex flex-col px-6 md:px-8 py-12 max-w-lg mx-auto"
       style={{ background: '#0a0a0a' }}
     >
       {/* Header */}
-      <div className="mb-8 animate-fade-in flex items-center justify-between">
+      <div className="mb-6 animate-fade-in flex items-center justify-between">
         <span className="text-xs tracking-[0.3em] uppercase" style={{ color: '#6b6560' }}>
           Welle {wave.number} · Enthüllung
         </span>
         <span className="text-xs tracking-[0.2em] uppercase" style={{ color: '#c8a065' }}>
-          {isSpectrum ? 'Spektrum' : isPulse ? 'Resonanz' : wave.prompt_type === 'photo' ? 'Foto' : wave.prompt_type === 'draw' ? 'Skizze' : 'Ergebnis'}
+          {isSpectrum
+            ? 'Spektrum'
+            : isPulse
+            ? 'Resonanz'
+            : isSilence
+            ? 'Stille'
+            : wave.prompt_type === 'photo'
+            ? 'Foto'
+            : wave.prompt_type === 'draw'
+            ? 'Skizze'
+            : 'Ergebnis'}
         </span>
       </div>
 
       {/* Prompt */}
       <p
-        className="font-display text-xl md:text-2xl font-light italic mb-10 text-center animate-fade-up"
-        style={{ color: '#c8a065', animationDelay: '150ms' }}
+        className="font-display text-xl md:text-2xl font-light italic mb-8 text-center animate-fade-up"
+        style={{ color: '#c8a065', animationDelay: '100ms' }}
       >
         „{wave.prompt}“
       </p>
 
+      {/* Blind Guessing Teaser Banner (when still veiled) */}
+      {supportsBlindGuessing && !isUnveiled && (
+        <div className="mb-6 p-4 rounded-sm border border-[#2a2a2a] bg-[#111111]/80 text-center animate-fade-in shadow-lg">
+          <div className="inline-flex items-center gap-2 mb-1">
+            <span className="text-[#c8a065] text-xs">👁</span>
+            <span className="text-[11px] tracking-[0.25em] uppercase text-[#c8a065] font-medium">
+              Intuitions-Rätsel
+            </span>
+          </div>
+          <p className="text-xs text-[#a09990] leading-relaxed">
+            Die Schöpfer sind verborgen. Tippe auf die Namen, um zu raten, wer was abgegeben hat – oder lüfte den Schleier direkt.
+          </p>
+        </div>
+      )}
+
       {/* 1. SPECIAL CASE: SPECTRUM REVEAL */}
       {isSpectrum ? (
-        <div className="flex-1 flex flex-col justify-center animate-fade-up my-6 w-full">
+        <div className="flex-1 flex flex-col justify-center animate-fade-up my-4 w-full">
           {(() => {
+            const choices = cleanOptions(wave.options)
             const parsed = responses.map(r => {
               try {
                 const data = JSON.parse(r.content)
@@ -77,25 +141,25 @@ export default function RevealScreen({ wave, responses, members, onComplete }: P
                   id: r.id,
                   memberId: r.member_id,
                   value: typeof data.value === 'number' ? data.value : 50,
-                  poleA: data.poleA || wave.options?.[0] || 'Pol A',
-                  poleB: data.poleB || wave.options?.[1] || 'Pol B',
+                  poleA: data.poleA || choices?.[0] || 'Pol A',
+                  poleB: data.poleB || choices?.[1] || 'Pol B',
                 }
               } catch {
                 return {
                   id: r.id,
                   memberId: r.member_id,
                   value: 50,
-                  poleA: wave.options?.[0] || 'Pol A',
-                  poleB: wave.options?.[1] || 'Pol B',
+                  poleA: choices?.[0] || 'Pol A',
+                  poleB: choices?.[1] || 'Pol B',
                 }
               }
             })
 
-            const poleA = parsed[0]?.poleA || wave.options?.[0] || 'Pol A'
-            const poleB = parsed[0]?.poleB || wave.options?.[1] || 'Pol B'
+            const poleA = parsed[0]?.poleA || choices?.[0] || 'Pol A'
+            const poleB = parsed[0]?.poleB || choices?.[1] || 'Pol B'
 
             return (
-              <div className="flex flex-col gap-10 w-full">
+              <div className="flex flex-col gap-8 w-full">
                 {/* Visual Spectrum Axis */}
                 <div className="p-6 border border-[#1e1e1e] bg-[#0d0d0d] rounded-sm flex flex-col gap-8 shadow-2xl">
                   <div className="text-center">
@@ -106,12 +170,10 @@ export default function RevealScreen({ wave, responses, members, onComplete }: P
 
                   {/* Axis Line with Pins */}
                   <div className="relative h-20 flex items-center px-4 my-2">
-                    {/* Background track line */}
                     <div className="w-full h-1 bg-[#1e1e1e] rounded-full relative">
                       <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-[#3a3a3a] -translate-x-1/2" />
                     </div>
 
-                    {/* Member Pins on Axis */}
                     {parsed.map((item, idx) => {
                       const name = getMemberName(item.memberId)
                       const isEven = idx % 2 === 0
@@ -158,11 +220,12 @@ export default function RevealScreen({ wave, responses, members, onComplete }: P
                 <div className="flex flex-col gap-3">
                   {parsed.map(item => {
                     const name = getMemberName(item.memberId)
-                    const leanText = item.value === 50
-                      ? 'Exakt ausgeglichen in der Mitte'
-                      : item.value < 50
-                      ? `${(50 - item.value) * 2}% Neigung zu „${poleA}“`
-                      : `${(item.value - 50) * 2}% Neigung zu „${poleB}“`
+                    const leanText =
+                      item.value === 50
+                        ? 'Exakt ausgeglichen in der Mitte'
+                        : item.value < 50
+                        ? `${(50 - item.value) * 2}% Neigung zu „${poleA}“`
+                        : `${(item.value - 50) * 2}% Neigung zu „${poleB}“`
 
                     return (
                       <div
@@ -172,9 +235,7 @@ export default function RevealScreen({ wave, responses, members, onComplete }: P
                         <span className="text-xs tracking-widest uppercase text-[#c8a065]">
                           {name}
                         </span>
-                        <span className="text-xs text-[#e8e4de]">
-                          {leanText}
-                        </span>
+                        <span className="text-xs text-[#e8e4de]">{leanText}</span>
                       </div>
                     )
                   })}
@@ -184,26 +245,24 @@ export default function RevealScreen({ wave, responses, members, onComplete }: P
           })()}
         </div>
       ) : isPulse ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center animate-fade-up my-8">
-          <div className="relative w-40 h-40 flex items-center justify-center mb-8">
+        /* 2. SPECIAL CASE: PULSE REVEAL */
+        <div className="flex-1 flex flex-col items-center justify-center text-center animate-fade-up my-6">
+          <div className="relative w-36 h-36 flex items-center justify-center mb-6">
             <div className="absolute inset-0 rounded-full border border-[#c8a065]/20 animate-ripple" />
             <div className="absolute inset-0 rounded-full border border-[#c8a065]/40 animate-ripple-2" />
             <div className="absolute inset-0 rounded-full border border-[#c8a065]/60 animate-ripple-3" />
-            <div className="w-24 h-24 rounded-full border border-[#c8a065] flex items-center justify-center bg-[#c8a065]/10 animate-breathe">
-              <span className="font-display text-4xl text-[#c8a065]">∿</span>
+            <div className="w-20 h-20 rounded-full border border-[#c8a065] flex items-center justify-center bg-[#c8a065]/10 animate-breathe">
+              <span className="font-display text-3xl text-[#c8a065]">∿</span>
             </div>
           </div>
 
-          <h3 className="font-display text-2xl text-[#e8e4de] mb-3">
-            Gemeinsame Resonanz
-          </h3>
-          <p className="text-xs tracking-[0.2em] uppercase text-[#6b6560] max-w-xs mb-8">
-            Eure Berührungen haben einander über die Distanz erreicht. Der Puls ist im Einklang.
+          <h3 className="font-display text-2xl text-[#e8e4de] mb-2">Gemeinsame Resonanz</h3>
+          <p className="text-xs tracking-[0.2em] uppercase text-[#6b6560] max-w-xs mb-6">
+            Eure Berührungen haben einander über die Distanz erreicht.
           </p>
 
-          {/* Members in sync */}
           <div className="flex flex-wrap items-center justify-center gap-2">
-            {responses.map((resp) => (
+            {responses.map(resp => (
               <span
                 key={resp.id}
                 className="px-3 py-1 border border-[#c8a065]/40 text-xs tracking-[0.15em] text-[#c8a065] rounded-full bg-[#c8a065]/5"
@@ -214,19 +273,17 @@ export default function RevealScreen({ wave, responses, members, onComplete }: P
           </div>
         </div>
       ) : isSilence ? (
-        /* 2. SPECIAL CASE: SILENCE REVEAL */
-        <div className="flex-1 flex flex-col items-center justify-center text-center animate-fade-up my-8">
+        /* 3. SPECIAL CASE: SILENCE REVEAL */
+        <div className="flex-1 flex flex-col items-center justify-center text-center animate-fade-up my-6">
           <div className="w-20 h-20 rounded-full border border-[#c8a065]/40 flex items-center justify-center mb-6 animate-breathe bg-[#c8a065]/5">
             <span className="font-display text-3xl text-[#c8a065]">∿</span>
           </div>
-          <h3 className="font-display text-2xl text-[#e8e4de] mb-3">
-            Gemeinsame Stille
-          </h3>
+          <h3 className="font-display text-2xl text-[#e8e4de] mb-2">Gemeinsame Stille</h3>
           <p className="text-xs tracking-[0.2em] uppercase text-[#6b6560] max-w-xs mb-6">
             Einen gemeinsamen Moment innegehalten.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
-            {responses.map((resp) => (
+            {responses.map(resp => (
               <span
                 key={resp.id}
                 className="px-3 py-1 border border-[#2a2a2a] text-xs tracking-[0.15em] text-[#e8e4de] rounded-full"
@@ -237,27 +294,65 @@ export default function RevealScreen({ wave, responses, members, onComplete }: P
           </div>
         </div>
       ) : (
-        /* 3. STANDARD REVEAL: TEXT, PHOTO, DRAW, CHOICE */
+        /* 4. STANDARD REVEAL: TEXT, PHOTO, DRAW, CHOICE */
         <div className="flex flex-col gap-6 flex-1">
-          {responses.slice(0, visibleCount).map((response) => {
+          {responses.map(response => {
             const isImage = response.content.startsWith('data:image/')
+            const isMyResponse = currentMember && response.member_id === currentMember.id
+            const trueAuthorName = getMemberName(response.member_id)
+            const currentGuess = guesses[response.id]
+            const guessedAuthorName = currentGuess ? getMemberName(currentGuess) : null
+            const wasGuessedCorrectly = currentGuess === response.member_id
+
             return (
               <div
                 key={response.id}
-                className="animate-reveal-card p-6 border transition-all duration-500"
+                className="p-6 border transition-all duration-500 rounded-sm relative overflow-hidden"
                 style={{
-                  borderColor: '#1e1e1e',
-                  background: '#0d0d0d',
-                  borderRadius: 2,
+                  borderColor: isUnveiled && wasGuessedCorrectly ? 'rgba(200,160,101,0.5)' : '#1e1e1e',
+                  background: isUnveiled && wasGuessedCorrectly ? 'rgba(200,160,101,0.03)' : '#0d0d0d',
                 }}
               >
-                <div className="flex items-center justify-between mb-3">
-                  <span
-                    className="text-xs tracking-[0.2em] uppercase"
-                    style={{ color: '#c8a065' }}
-                  >
-                    {getMemberName(response.member_id)}
-                  </span>
+                {/* Author Status Header */}
+                <div className="flex items-center justify-between mb-3 border-b border-[#181818] pb-2.5">
+                  {!isUnveiled ? (
+                    isMyResponse ? (
+                      <span className="text-xs tracking-[0.2em] uppercase text-[#c8a065] font-medium flex items-center gap-1.5">
+                        <span>●</span> Deine Schöpfung
+                      </span>
+                    ) : (
+                      <span className="text-xs tracking-[0.2em] uppercase text-[#736d65] font-light flex items-center gap-1.5">
+                        <span className="text-[#c8a065]">?</span> Unbekannte Präsenz
+                      </span>
+                    )
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs tracking-[0.2em] uppercase text-[#c8a065] font-semibold">
+                        {trueAuthorName}
+                      </span>
+                      {isMyResponse && (
+                        <span className="text-[10px] tracking-wider uppercase text-[#6b6560]">
+                          (Du)
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Guess Tag in Header */}
+                  {isUnveiled && !isMyResponse && currentGuess && (
+                    <span
+                      className={`text-[10px] tracking-wider uppercase px-2 py-0.5 rounded border ${
+                        wasGuessedCorrectly
+                          ? 'border-[#c8a065] text-[#c8a065] bg-[#c8a065]/10'
+                          : 'border-[#444] text-[#888]'
+                      }`}
+                    >
+                      {wasGuessedCorrectly
+                        ? '✓ Intuition bestätigt'
+                        : `✕ Getippt: ${guessedAuthorName}`}
+                    </span>
+                  )}
+
                   {isImage && (
                     <span className="text-[10px] tracking-wider text-[#6b6560] uppercase">
                       Tippen zum Vergrößern
@@ -265,6 +360,7 @@ export default function RevealScreen({ wave, responses, members, onComplete }: P
                   )}
                 </div>
 
+                {/* Content */}
                 {isImage ? (
                   <div
                     onClick={() => setLightboxImg(response.content)}
@@ -274,21 +370,131 @@ export default function RevealScreen({ wave, responses, members, onComplete }: P
                       src={response.content}
                       alt="Kreation"
                       className={`w-full h-full ${
-                        wave.prompt_type === 'draw' ? 'object-contain bg-[#0a0a0a]' : 'object-cover'
+                        wave.prompt_type === 'draw'
+                          ? 'object-contain bg-[#0a0a0a]'
+                          : 'object-cover'
                       }`}
                     />
                   </div>
                 ) : (
                   <p
-                    className="text-lg leading-relaxed font-display font-light"
+                    className="text-lg leading-relaxed font-display font-light my-2"
                     style={{ color: '#e8e4de' }}
                   >
                     {wave.prompt_type === 'choice' ? `„${response.content}“` : response.content}
                   </p>
                 )}
+
+                {/* Blind Guessing Selector (Only while veiled, only for other people's answers) */}
+                {!isUnveiled && !isMyResponse && otherMembers.length > 0 && (
+                  <div className="mt-4 pt-3 border-t border-[#1a1a1a]">
+                    <span className="block text-[10px] tracking-[0.2em] uppercase text-[#6b6560] mb-2">
+                      Wer hat das geschaffen?
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {otherMembers.map(m => {
+                        const isChosen = currentGuess === m.id
+                        return (
+                          <button
+                            key={m.id}
+                            onClick={() =>
+                              setGuesses(prev => ({
+                                ...prev,
+                                [response.id]: isChosen ? '' : m.id,
+                              }))
+                            }
+                            className={`px-3 py-1.5 text-xs tracking-wider rounded-sm border transition-all ${
+                              isChosen
+                                ? 'border-[#c8a065] bg-[#c8a065]/15 text-[#e8e4de] shadow-[0_0_8px_rgba(200,160,101,0.25)]'
+                                : 'border-[#222] bg-[#121212] text-[#888] hover:border-[#333]'
+                            }`}
+                          >
+                            {m.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}
+
+          {/* Button to Unveil the Veil */}
+          {supportsBlindGuessing && !isUnveiled && (
+            <button
+              onClick={() => setIsUnveiled(true)}
+              className="mt-4 py-4 w-full text-center text-sm tracking-[0.25em] uppercase border border-[#c8a065] text-[#c8a065] hover:bg-[#c8a065]/10 transition-all shadow-[0_0_20px_rgba(200,160,101,0.15)] font-medium"
+            >
+              Schleier lüften & Auflösen →
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Intuition Result Score Banner */}
+      {score && score.attempted > 0 && (
+        <div className="my-6 p-4 border border-[#c8a065]/40 bg-[#c8a065]/5 rounded-sm animate-fade-in text-center">
+          <div className="text-[11px] tracking-[0.25em] uppercase text-[#c8a065] mb-1 font-medium">
+            ✦ Resonanz-Intuition
+          </div>
+          <p className="text-sm text-[#e8e4de]">
+            {score.correct === score.total ? (
+              <span>Vollkommener Gleichklang: {score.correct} von {score.total} Seelen erkannt!</span>
+            ) : score.correct > 0 ? (
+              <span>{score.correct} von {score.attempted} Zuordnungen durchschaut.</span>
+            ) : (
+              <span>Kein Treffer – eure Freunde haben euch heute überrascht.</span>
+            )}
+          </p>
+        </div>
+      )}
+
+      {/* Oracle Echo Section (Appears after unveiling or on special waves) */}
+      {isUnveiled && (echo || loadingEcho) && (
+        <div className="my-8 p-6 rounded-sm border border-[#2a2a2a] bg-[#0e0e0e] shadow-2xl relative overflow-hidden animate-fade-up">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-[#c8a065]/5 rounded-full blur-2xl pointer-events-none" />
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs text-[#c8a065] animate-pulse">🔮</span>
+            <span className="text-[11px] tracking-[0.3em] uppercase text-[#c8a065] font-semibold">
+              Echo der Welle
+            </span>
+          </div>
+
+          {loadingEcho && !echo ? (
+            <div className="flex items-center gap-3 py-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#c8a065] animate-breathe" />
+              <p className="text-xs text-[#6b6560] italic">
+                Die Welle lauscht euren Antworten und formt das Echo...
+              </p>
+            </div>
+          ) : (
+            <p className="font-display text-base md:text-lg italic text-[#e8e4de] leading-relaxed">
+              „{echo}“
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Whisper / Glitch Anomaly Reveal */}
+      {isUnveiled && glitch && (
+        <div className="my-4 p-5 border border-[#c8a065]/50 bg-[#16130d] rounded-sm animate-fade-up shadow-xl">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm text-[#c8a065]">⚡</span>
+            <span className="text-xs tracking-[0.25em] uppercase text-[#c8a065] font-semibold">
+              Anomalie der Welle · Ein Flüsterer unter euch
+            </span>
+          </div>
+          <p className="text-xs text-[#a09990] mb-3 leading-relaxed">
+            Die Welle hat auf einer gespaltenen Frequenz geschwungen.{' '}
+            <span className="text-[#e8e4de] font-semibold">
+              {glitch.memberName || getMemberName(glitch.memberId)}
+            </span>{' '}
+            empfing heimlich eine andere Aufforderung:
+          </p>
+          <div className="p-3 bg-[#0a0a0a] border border-[#2a2318] rounded text-sm italic text-[#c8a065]">
+            „{glitch.prompt}“
+          </div>
         </div>
       )}
 
@@ -306,13 +512,13 @@ export default function RevealScreen({ wave, responses, members, onComplete }: P
         </div>
       )}
 
-      {/* Done button */}
-      {done && (
+      {/* Done button (only visible when unveiled) */}
+      {isUnveiled && (
         <button
           onClick={onComplete}
-          className="mt-10 py-4 text-center text-sm tracking-[0.25em] uppercase transition-opacity hover:opacity-70 animate-fade-up border border-[#c8a065] text-[#c8a065] hover:bg-[#c8a065]/10"
+          className="mt-8 py-4 text-center text-sm tracking-[0.25em] uppercase transition-all border border-[#c8a065] text-[#c8a065] hover:bg-[#c8a065]/10 animate-fade-up font-medium"
         >
-          Weiter →
+          Weiter zur Ruhephase →
         </button>
       )}
     </div>
