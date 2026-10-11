@@ -64,7 +64,10 @@ export async function sendPushToMembers(options: {
       }
 
       try {
-        await webpush.sendNotification(pushSubscription, payloadString)
+        await webpush.sendNotification(pushSubscription, payloadString, {
+          TTL: 86400,
+          urgency: 'high',
+        })
         sent++
       } catch (err: any) {
         failed++

@@ -22,11 +22,12 @@ self.addEventListener('push', (event) => {
     body: payload.body || 'Ein neuer Impuls wartet auf dich.',
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
-    tag: payload.tag || 'welle-impulse',
+    tag: payload.tag || ('welle-' + Date.now()),
+    renotify: true,
     data: {
       url: payload.url || '/',
     },
-    vibrate: [150, 75, 150],
+    vibrate: [200, 100, 200],
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
