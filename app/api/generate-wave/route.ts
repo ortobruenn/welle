@@ -26,9 +26,6 @@ const CURATED_PROMPTS = [
   // STILLE & ACHTSAMKEIT 🧘
   { prompt: 'Nimm dir 20 Sekunden vollkommene Stille. Lass das Rauschen der Welt kurz verblassen.', prompt_type: 'silence', options: null },
 
-  // WORT-KETTE ⛓️
-  { prompt: 'Kettenreaktion: Schreibe genau EIN einziges Wort für das gemeinsame Satz-Mosaik.', prompt_type: 'chain', options: null },
-
   // DILEMMA & ENTSCHEIDUNG 🎲
   { prompt: 'Dilemma: Eher ein Jahr lang jeden Tag derselbe Song oder nie wieder Musik hören?', prompt_type: 'choice', options: ['Jeden Tag derselbe Song', 'Nie wieder Musik'] },
   { prompt: 'Entscheidung: Spontaner Nachtspaziergang durch die Stadt oder am Kamin einschlafen?', prompt_type: 'choice', options: ['Nachtspaziergang', 'Kaminfeuer'] },
@@ -62,26 +59,25 @@ export async function POST() {
     }
 
     // Liste aller verfügbaren Erlebnis-Formate
-    const FORMAT_TYPES = ['draw', 'photo', 'pulse', 'silence', 'chain', 'choice', 'text'] as const
+    const FORMAT_TYPES = ['draw', 'photo', 'pulse', 'silence', 'choice', 'text'] as const
 
     const systemPrompt = `Du bist die mysteriöse, poetische und verbindende Intelligenz der Web-App "Welle".
 Die Nutzer sind 4 gute Freunde, die zusammen lernen, aber im Alltag getrennt leben.
 Deine Aufgabe ist es, die NÄCHSTE Welle zu kreieren. 
 
-WICHTIGSTE REGEL: ABWECHSLUNG! Es darf NIEMALS monoton sein. Wechsle aktiv zwischen diesen 7 Formaten ab:
+WICHTIGSTE REGEL: ABWECHSLUNG! Es darf NIEMALS monoton sein. Wechsle aktiv zwischen diesen 6 Formaten ab:
 1. "draw": Eine minimalistische Finger-Zeichnung auf schwarzem Grund (z.B. ein Symbol für heute, ein 3-beiniges Tier, eine Wolke).
 2. "photo": Ein Foto-Ausschnitt aus der realen Umgebung (z.B. etwas Rotes, eine bestimmte Textur, der Blick aus dem Fenster).
 3. "pulse": 10 Sekunden Berührung / Puls auf dem Display (Resonanz über die Distanz spüren).
 4. "silence": 20-30 Sekunden Achtsamkeit / Stille Minute (innehalten und Augen schließen).
-5. "chain": Eine gemeinsame Ketten-Reaktion (jeder schreibt genau EIN einziges Wort für einen gemeinsamen Satz).
-6. "choice": Ein unerwartetes A/B-Dilemma oder eine skurrile Entscheidung.
-7. "text": Ein kurzer, tiefgründiger Gedanke oder Alltagsbeobachtung.
+5. "choice": Ein unerwartetes A/B-Dilemma oder eine skurrile Entscheidung.
+6. "text": Ein kurzer, tiefgründiger Gedanke oder Alltagsbeobachtung.
 
 Beziehe dich subtil auf frühere Stimmungen der Gruppe. Halte die Aufforderung kurz und poetisch (1-2 Sätze).
 Gib AUSSCHLIESSLICH ein valides JSON zurück:
 {
   "prompt": "Deine Aufforderung hier",
-  "prompt_type": "draw" | "photo" | "pulse" | "silence" | "chain" | "choice" | "text",
+  "prompt_type": "draw" | "photo" | "pulse" | "silence" | "choice" | "text",
   "options": ["Option A", "Option B"] // NUR wenn prompt_type "choice" ist, sonst null
 }`
 

@@ -289,7 +289,6 @@ export default function AdminPage() {
               { id: 'photo', label: 'Foto 📷' },
               { id: 'pulse', label: 'Puls / Touch ∿' },
               { id: 'silence', label: 'Stille 🧘' },
-              { id: 'chain', label: 'Wort-Kette ⛓️' },
             ] as const).map(t => (
               <button
                 key={t.id}

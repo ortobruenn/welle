@@ -69,8 +69,8 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
           {wave.prompt}
         </p>
 
-        {/* 1. TEXT / MONO-WORT / CHAIN */}
-        {(wave.prompt_type === 'text' || wave.prompt_type === 'chain' || !wave.prompt_type) && (
+        {/* 1. TEXT */}
+        {(wave.prompt_type === 'text' || !wave.prompt_type) && (
           <div className="w-full animate-fade-up" style={{ animationDelay: '300ms' }}>
             <textarea
               autoFocus
@@ -82,15 +82,15 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
                   handleSubmit()
                 }
               }}
-              rows={wave.prompt_type === 'chain' ? 1 : 3}
-              maxLength={wave.prompt_type === 'chain' ? 40 : 300}
+              rows={3}
+              maxLength={300}
               className="w-full bg-transparent border-b resize-none py-3 text-center text-lg leading-relaxed focus:outline-none"
               style={{
                 borderColor: '#1e1e1e',
                 color: '#e8e4de',
                 caretColor: '#c8a065',
               }}
-              placeholder={wave.prompt_type === 'chain' ? 'Ein einziges Wort...' : '...'}
+              placeholder="..."
             />
           </div>
         )}
@@ -146,14 +146,14 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
       </div>
 
       {/* Submit button (nur nötig für Text, Choice, Draw, Photo) */}
-      {['text', 'choice', 'draw', 'photo', 'chain'].includes(wave.prompt_type) && (
+      {['text', 'choice', 'draw', 'photo'].includes(wave.prompt_type) && (
         <div className="animate-fade-up mt-8" style={{ animationDelay: '450ms' }}>
           <button
             onClick={handleSubmitClick}
             disabled={
               loading ||
               (wave.prompt_type === 'choice' && !selected) ||
-              ((wave.prompt_type === 'text' || wave.prompt_type === 'chain') && !answer.trim()) ||
+              (wave.prompt_type === 'text' && !answer.trim()) ||
               ((wave.prompt_type === 'draw' || wave.prompt_type === 'photo') && !mediaContent)
             }
             className="w-full py-5 text-sm tracking-[0.25em] uppercase transition-opacity hover:opacity-70 disabled:opacity-20"
