@@ -75,18 +75,22 @@ export default function Home() {
     // Determine state & Auto-Transitions
     if (currentWave.status === 'active') {
       if (responseList.length >= TOTAL_MEMBERS) {
-        // Alle 4 haben geantwortet -> Welle geht in den Reveal-Status!
-        await supabase
+        // Alle haben geantwortet -> Welle geht atomar in den Reveal-Status!
+        const { data: updated } = await supabase
           .from('waves')
           .update({ status: 'reveal', revealed_at: new Date().toISOString() })
           .eq('id', currentWave.id)
+          .eq('status', 'active')
+          .select()
 
-        // Mystisches Echo der Welle im Hintergrund anstoßen
-        fetch('/api/synthesize-echo', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ waveId: currentWave.id }),
-        }).catch(err => console.warn('Echo synthesis error:', err))
+        // Nur der eine Client, der den Übergang von 'active' auf 'reveal' vollzogen hat, stößt das Echo an!
+        if (updated && updated.length > 0) {
+          fetch('/api/synthesize-echo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ waveId: currentWave.id }),
+          }).catch(err => console.warn('Echo synthesis error:', err))
+        }
 
         setAppState('reveal')
       } else {

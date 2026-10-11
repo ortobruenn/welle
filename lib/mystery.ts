@@ -88,13 +88,7 @@ export function buildVibeOptions(items: VibeItem[]): string[] {
 export function cleanOptions(options: string[] | null): string[] | null {
   if (!options || !Array.isArray(options)) return null
   const cleaned = options.filter(
-    o => typeof o === 'string' &&
-      !o.startsWith('__echo__:') &&
-      !o.startsWith('__glitch__:') &&
-      !o.startsWith('__solution__:') &&
-      !o.startsWith('__hint__:') &&
-      !o.startsWith('__vibe__:') &&
-      !o.startsWith('__prepared_wave__:')
+    o => typeof o === 'string' && !o.startsWith('__')
   )
   return cleaned.length > 0 ? cleaned : null
 }

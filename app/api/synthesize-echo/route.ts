@@ -20,8 +20,11 @@ const FALLBACK_ECHOES = [
 ]
 
 export async function POST(req: Request) {
+  let waveId: string | null = null
+
   try {
-    const { waveId } = await req.json()
+    const body = await req.json().catch(() => ({}))
+    waveId = body?.waveId
     if (!waveId) {
       return NextResponse.json({ error: 'Missing waveId' }, { status: 400 })
     }
@@ -37,10 +40,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Wave not found' }, { status: 404 })
     }
 
-    // Prüfen, ob bereits ein Echo existiert
+    // Prüfen, ob bereits ein Echo existiert oder gerade generiert wird / Push bereits gesendet wurde
     const existingEcho = extractEcho(wave.options)
-    if (existingEcho) {
-      return NextResponse.json({ success: true, echo: existingEcho })
+    const isLocked = wave.options?.some((o: string) => o === '__echo_locked__' || o === '__reveal_push_sent__')
+    if (existingEcho || isLocked) {
+      return NextResponse.json({ success: true, echo: existingEcho, alreadyDispatched: true })
+    }
+
+    // Atomare Sperre in Supabase setzen
+    const lockOptions = [...(wave.options || []), '__echo_locked__']
+    const { data: claimed } = await supabase
+      .from('waves')
+      .update({ options: lockOptions })
+      .eq('id', waveId)
+      .eq('status', 'reveal')
+      .select()
+
+    if (!claimed || claimed.length === 0) {
+      return NextResponse.json({ success: true, inProgressOrDone: true })
     }
 
     const { data: responses } = await supabase
@@ -110,14 +127,15 @@ Regeln:
 
     // 4. In Supabase speichern
     const updatedOptions = attachEchoToOptions(wave.options, synthesizedEcho)
+    const finalOptions = [...updatedOptions.filter(o => o !== '__echo_locked__'), '__reveal_push_sent__']
     const { error: updateError } = await supabase
       .from('waves')
-      .update({ options: updatedOptions })
+      .update({ options: finalOptions })
       .eq('id', waveId)
 
     if (updateError) throw updateError
 
-    // Web Push: Alle haben geantwortet -> Enthüllung an alle Teilnehmer melden
+    // Web Push: Alle haben geantwortet -> Genau einmal an alle Teilnehmer melden!
     try {
       await sendPushToMembers({
         payload: {
@@ -134,6 +152,15 @@ Regeln:
     return NextResponse.json({ success: true, echo: synthesizedEcho })
   } catch (error: any) {
     console.error('Error in synthesize-echo:', error)
+    if (waveId) {
+      try {
+        const { data: cur } = await supabase.from('waves').select('options').eq('id', waveId).single()
+        if (cur?.options) {
+          const clean = cur.options.filter((o: string) => o !== '__echo_locked__')
+          await supabase.from('waves').update({ options: clean }).eq('id', waveId)
+        }
+      } catch {}
+    }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

@@ -40,21 +40,9 @@ export default function RevealScreen({
   const glitch = extractGlitch(wave.options)
 
   useEffect(() => {
-    if (!echo) {
-      setLoadingEcho(true)
-      fetch('/api/synthesize-echo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ waveId: wave.id }),
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data?.echo) setEcho(data.echo)
-        })
-        .catch(err => console.warn('Echo fetch error:', err))
-        .finally(() => setLoadingEcho(false))
-    }
-  }, [wave.id, echo])
+    const current = extractEcho(wave.options)
+    if (current) setEcho(current)
+  }, [wave.options])
 
   const getMemberName = (memberId: string) => {
     const m = members.find(m => m.id === memberId)

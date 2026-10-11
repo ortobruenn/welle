@@ -23,7 +23,7 @@ self.addEventListener('push', (event) => {
     icon: '/icons/icon-192.png?v=2',
     badge: '/icons/icon-192.png?v=2',
     tag: payload.tag || ('welle-' + Date.now()),
-    renotify: true,
+    renotify: false,
     data: {
       url: payload.url || '/',
     },
