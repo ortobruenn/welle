@@ -48,16 +48,57 @@ export default function PushBell({ memberId }: Props) {
 
     setLoading(true)
     try {
-      const ok = await subscribeToPush(memberId)
-      if (ok || (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted')) {
-        setStatus('active')
-        setFeedback('Push aktiv!')
-        setTimeout(() => setFeedback(null), 3000)
-      } else {
-        alert('Benachrichtigungen wurden im Browser nicht erlaubt.')
+      // 1. Berechtigung prüfen/anfordern
+      if (!('Notification' in window)) {
+        alert('Benachrichtigungen werden von diesem Browser nicht unterstützt.')
+        return
       }
+
+      let perm = Notification.permission
+      if (perm !== 'granted') {
+        perm = await Notification.requestPermission()
+      }
+
+      if (perm !== 'granted') {
+        alert('Benachrichtigungen stehen auf: „' + perm + '“.\nBitte in den Browser-/Android-Einstellungen für diese Seite erlauben.')
+        setStatus('inactive')
+        return
+      }
+
+      // 2. Lokaler Test über Service Worker
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready
+        if (reg) {
+          try {
+            await reg.showNotification('Welle Direkt-Signal ∿', {
+              body: 'Gerätetest erfolgreich! Benachrichtigungen auf diesem Gerät funktionieren.',
+              icon: '/icons/icon-192.png',
+              tag: 'direct-' + Date.now(),
+              renotify: true,
+            } as any)
+          } catch (localErr: any) {
+            console.warn('Local notification error:', localErr)
+          }
+        }
+      }
+
+      // 3. Im Backend registrieren & Server-Push auslösen
+      await subscribeToPush(memberId)
+      await fetch('/api/push/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memberId,
+          title: 'Welle Server-Signal ∿',
+          body: 'Das Signal wurde erfolgreich vom Server zugestellt.',
+        }),
+      })
+
+      setStatus('active')
+      setFeedback('Test gesendet!')
+      setTimeout(() => setFeedback(null), 3000)
     } catch (e: any) {
-      alert('Fehler: ' + e?.message)
+      alert('Push-Fehler: ' + e?.message)
     } finally {
       setLoading(false)
     }
@@ -67,13 +108,16 @@ export default function PushBell({ memberId }: Props) {
 
   if (status === 'active') {
     return (
-      <span
-        title="Push-Benachrichtigungen sind aktiv"
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-[#c8a065]/30 bg-[#c8a065]/5 text-[10px] tracking-wider text-[#c8a065]"
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={loading}
+        title="Tippen für Push-Test auf diesem Gerät"
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-[#c8a065]/40 bg-[#c8a065]/10 hover:bg-[#c8a065]/20 text-[10px] tracking-wider text-[#c8a065] cursor-pointer transition-all active:scale-95"
       >
         <span>🔔</span>
-        <span>{feedback || 'Aktiv'}</span>
-      </span>
+        <span>{loading ? 'Testet...' : feedback || 'Aktiv (Test)'}</span>
+      </button>
     )
   }
 

@@ -5,6 +5,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}))
     const result = await sendPushToMembers({
+      memberIds: body.memberId ? [body.memberId] : undefined,
       payload: {
         title: body.title || 'Welle Signal ∿',
         body: body.body || 'Das Signal ist angekommen. Push-Benachrichtigungen funktionieren einwandfrei.',
