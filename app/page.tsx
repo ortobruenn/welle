@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Member, Wave, WaveResponse } from '@/lib/types'
 import MysteryScreen from '@/components/MysteryScreen'
@@ -23,6 +23,7 @@ export default function Home() {
   const [responses, setResponses] = useState<WaveResponse[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [userResponse, setUserResponse] = useState<WaveResponse | null>(null)
+  const isGeneratingWaveRef = useRef(false)
 
   const loadAppState = useCallback(async (memberId: string) => {
     // Fetch latest wave
@@ -106,20 +107,18 @@ export default function Home() {
       } else {
         // Wenn der gemeinsame Cooldown abgelaufen ist -> Automatisch nächste Welle per Gemini
         if (currentWave.next_wave_at && new Date(currentWave.next_wave_at).getTime() <= Date.now()) {
-          try {
-            await fetch('/api/generate-wave', { method: 'POST' })
-            const { data: updatedWaves } = await supabase
-              .from('waves')
-              .select('*')
-              .order('number', { ascending: false })
-              .limit(1)
-            if (updatedWaves && updatedWaves.length > 0) {
-              setWave(updatedWaves[0] as Wave)
-              setAppState('wave')
-              return
+          if (!isGeneratingWaveRef.current) {
+            isGeneratingWaveRef.current = true
+            try {
+              await fetch('/api/generate-wave', { method: 'POST' })
+            } catch (e) {
+              console.error('Auto next wave error:', e)
+            } finally {
+              isGeneratingWaveRef.current = false
             }
-          } catch (e) {
-            console.error('Auto next wave error:', e)
+            // Gesamten Zustand für die neue Welle sauber neuladen
+            await loadAppState(memberId)
+            return
           }
         }
         setAppState('cooldown')

@@ -38,8 +38,31 @@ const CURATED_PROMPTS = [
   { prompt: 'Was hat dich heute für einen Augenblick zum Schmunzeln gebracht?', prompt_type: 'text', options: null },
 ]
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
+    let force = false
+    try {
+      const body = await req.json()
+      force = !!body?.force
+    } catch {
+      // kein JSON body
+    }
+
+    // 0. Prüfen, ob bereits eine aktive Welle existiert (verhindert Race Condition durch mehrere Clients)
+    if (!force) {
+      const { data: latestActive } = await supabase
+        .from('waves')
+        .select('*')
+        .order('number', { ascending: false })
+        .limit(1)
+
+      if (latestActive && latestActive.length > 0) {
+        const topWave = latestActive[0]
+        if (topWave.status === 'active') {
+          return NextResponse.json({ success: true, wave: topWave, deduplicated: true })
+        }
+      }
+    }
     // 1. Vorherige Wellen holen
     const { data: previousWaves } = await supabase
       .from('waves')

@@ -98,7 +98,11 @@ export default function AdminPage() {
   const handleGenerateWithAI = async () => {
     setLoading(true)
     try {
-      await fetch('/api/generate-wave', { method: 'POST' })
+      await fetch('/api/generate-wave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true }),
+      })
       await fetchData()
     } catch (e) {
       console.error(e)
