@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import type { Wave } from '@/lib/types'
+import PushBell from './PushBell'
 
 interface Props {
   wave: Wave | null
@@ -64,9 +65,17 @@ export default function CooldownScreen({ wave, memberId, onWaveReady }: Props) {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center px-8"
+      className="min-h-screen flex flex-col items-center justify-center px-8 relative"
       style={{ background: '#0a0a0a' }}
     >
+      {/* Top Header */}
+      <div className="absolute top-10 left-8 right-8 flex items-center justify-between">
+        <span className="text-xs tracking-[0.3em] uppercase" style={{ color: '#6b6560' }}>
+          Welle {wave.number}
+        </span>
+        <PushBell memberId={memberId} />
+      </div>
+
       {/* Symbol */}
       <div
         className="font-display text-5xl font-light mb-16 animate-float"

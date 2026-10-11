@@ -2,6 +2,7 @@
 
 import type { Wave, Member, WaveResponse } from '@/lib/types'
 import { extractVibeOptions } from '@/lib/mystery'
+import PushBell from './PushBell'
 
 interface Props {
   wave: Wave
@@ -17,9 +18,17 @@ export default function WaitingScreen({ wave, responses, totalMembers, userRespo
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center px-8"
+      className="min-h-screen flex flex-col items-center justify-center px-8 relative"
       style={{ background: '#0a0a0a' }}
     >
+      {/* Top Header */}
+      <div className="absolute top-10 left-8 right-8 flex items-center justify-between">
+        <span className="text-xs tracking-[0.3em] uppercase" style={{ color: '#6b6560' }}>
+          Welle {wave.number}
+        </span>
+        <PushBell memberId={userResponse?.member_id} />
+      </div>
+
       {/* Symbol */}
       <div
         className="font-display text-5xl font-light mb-16 animate-breathe"

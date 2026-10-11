@@ -10,6 +10,7 @@ import SilenceMoment from './SilenceMoment'
 import SpectrumSlider from './SpectrumSlider'
 import EnigmaPuzzle from './EnigmaPuzzle'
 import VibeSelector from './VibeSelector'
+import PushBell from './PushBell'
 
 interface Props {
   wave: Wave
@@ -67,9 +68,12 @@ export default function WaveScreen({ wave, member, members, onSubmit }: Props) {
         <span className="text-xs tracking-[0.3em] uppercase" style={{ color: '#6b6560' }}>
           Welle {wave.number}
         </span>
-        <span className="text-xs tracking-[0.2em]" style={{ color: '#6b6560' }}>
-          {member.name}
-        </span>
+        <div className="flex items-center gap-2.5">
+          <PushBell memberId={member.id} />
+          <span className="text-xs tracking-[0.2em]" style={{ color: '#6b6560' }}>
+            {member.name}
+          </span>
+        </div>
       </div>
 
       {/* Secret Anomaly Notice (if this member received the whisper frequency) */}

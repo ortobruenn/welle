@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { Wave, Member, WaveResponse } from '@/lib/types'
 import { extractEcho, extractGlitch, cleanOptions, extractEnigma, extractVibeOptions } from '@/lib/mystery'
+import PushBell from './PushBell'
 
 interface Props {
   wave: Wave
@@ -93,7 +94,9 @@ export default function RevealScreen({
         <span className="text-xs tracking-[0.3em] uppercase" style={{ color: '#6b6560' }}>
           Welle {wave.number} · Enthüllung
         </span>
-        <span className="text-xs tracking-[0.2em] uppercase" style={{ color: '#c8a065' }}>
+        <div className="flex items-center gap-2.5">
+          <PushBell memberId={currentMember?.id} />
+          <span className="text-xs tracking-[0.2em] uppercase" style={{ color: '#c8a065' }}>
           {isEnigma
             ? 'Rätsel-Anomalie'
             : isSpectrum
@@ -109,7 +112,8 @@ export default function RevealScreen({
             : wave.prompt_type === 'draw'
             ? 'Skizze'
             : 'Ergebnis'}
-        </span>
+          </span>
+        </div>
       </div>
 
       {/* Prompt */}
