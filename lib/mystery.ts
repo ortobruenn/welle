@@ -93,7 +93,8 @@ export function cleanOptions(options: string[] | null): string[] | null {
       !o.startsWith('__glitch__:') &&
       !o.startsWith('__solution__:') &&
       !o.startsWith('__hint__:') &&
-      !o.startsWith('__vibe__:')
+      !o.startsWith('__vibe__:') &&
+      !o.startsWith('__prepared_wave__:')
   )
   return cleaned.length > 0 ? cleaned : null
 }
@@ -111,4 +112,29 @@ export function attachGlitchToOptions(
 ): string[] {
   const filtered = (options || []).filter(o => !o.startsWith('__glitch__:'))
   return [`__glitch__:${memberId}:${memberName}:${glitchPrompt.trim()}`, ...filtered]
+}
+
+export interface PreparedWaveData {
+  prompt: string
+  prompt_type: string
+  options: string[] | null
+}
+
+export function extractPreparedWave(options: string[] | null): PreparedWaveData | null {
+  if (!options || !Array.isArray(options)) return null
+  const item = options.find(o => typeof o === 'string' && o.startsWith('__prepared_wave__:'))
+  if (!item) return null
+  try {
+    return JSON.parse(item.slice('__prepared_wave__:'.length))
+  } catch {
+    return null
+  }
+}
+
+export function attachPreparedWaveToOptions(
+  options: string[] | null,
+  data: PreparedWaveData
+): string[] {
+  const filtered = (options || []).filter(o => typeof o === 'string' && !o.startsWith('__prepared_wave__:'))
+  return [...filtered, `__prepared_wave__:${JSON.stringify(data)}`]
 }

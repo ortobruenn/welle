@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { attachGlitchToOptions, buildEnigmaOptions, buildVibeOptions } from '@/lib/mystery'
+import {
+  attachGlitchToOptions,
+  buildEnigmaOptions,
+  buildVibeOptions,
+  extractPreparedWave,
+  attachPreparedWaveToOptions,
+} from '@/lib/mystery'
 import { sendPushToMembers } from '@/lib/pushServer'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -59,129 +65,109 @@ const CURATED_PROMPTS = [
     options: ['Kühler Verstand', 'Blinde Intuition']
   },
   {
-    prompt: 'Dein innerer Energie-Kompass des heutigen Tages:',
+    prompt: 'Welche Energie dominiert deinen Tag?',
     glitch_prompt: null,
     prompt_type: 'spectrum',
-    options: ['Reine Beobachtung', 'Unbändiger Tatendrang']
+    options: ['Vorwärtsdrang & Tatendrang', 'Stiller Rückzug & Beobachtung']
   },
   {
-    prompt: 'Wenn etwas schiefgeht – deine erste spontane Regung:',
+    prompt: 'Wie fühlt sich die Welt heute um dich herum an?',
     glitch_prompt: null,
     prompt_type: 'spectrum',
-    options: ['Mit Humor nehmen', 'Alles sezieren']
+    options: ['Dicht & Schnell', 'Weit & Zeitlos']
   },
 
-  // STILLE & ACHTSAMKEIT 🧘
+  // PULS & SYNCHRONITÄT ⏱️
   {
-    prompt: 'Nimm dir 20 Sekunden vollkommene Stille. Lass das Rauschen der Welt kurz verblassen.',
+    prompt: 'Schließe kurz die Augen. Halte den Kreis für genau 7 Sekunden gedrückt – rein nach Gefühl.',
+    glitch_prompt: 'Halte den Kreis für genau 3 Sekunden gedrückt – lass früher los als gedacht.',
+    prompt_type: 'pulse',
+    options: null
+  },
+
+  // STILLE & ACHTSAMKEIT 🕯️
+  {
+    prompt: 'Nimm dir 30 Sekunden absolute Stille. Berühre nichts, atme nur tief ein und aus.',
     glitch_prompt: null,
     prompt_type: 'silence',
     options: null
   },
 
-  // DILEMMA & ENTSCHEIDUNG 🎲
+  // KOOPERATIVES RÄTSEL / ENIGMA 🧩
   {
-    prompt: 'Dilemma: Eher ein Jahr lang jeden Tag derselbe Song oder nie wieder Musik hören?',
-    glitch_prompt: null,
-    prompt_type: 'choice',
-    options: ['Jeden Tag derselbe Song', 'Nie wieder Musik']
-  },
-  {
-    prompt: 'Entscheidung: Spontaner Nachtspaziergang durch die Stadt oder am Kamin einschlafen?',
-    glitch_prompt: null,
-    prompt_type: 'choice',
-    options: ['Nachtspaziergang', 'Kaminfeuer']
-  },
-
-  // TIEFSINN & GEDANKEN ✍️
-  {
-    prompt: 'Was war der unscheinbarste Glücksmoment deines heutigen Tages?',
-    glitch_prompt: 'Welche unscheinbare Absurdität oder kleine Panne ist dir heute passiert?',
-    prompt_type: 'text',
-    options: null
-  },
-  {
-    prompt: 'Wofür bist du heute dankbar, das man nicht kaufen kann?',
-    glitch_prompt: 'Auf welche Gewohnheit oder Pflicht hättest du heute liebend gern verzichtet?',
-    prompt_type: 'text',
-    options: null
-  },
-  {
-    prompt: 'Was hat dich heute für einen Augenblick zum Schmunzeln gebracht?',
-    glitch_prompt: 'Was hat dich heute für einen Moment irritiert oder stutzig gemacht?',
-    prompt_type: 'text',
-    options: null
-  },
-
-  // KOOPERATIVE RÄTSEL & FRAGMENTE 🧩
-  {
-    prompt: 'Die Welle ist in 4 Fragmente zerbrochen. Tauscht euch aus und findet das gemeinsame Lösungswort.',
-    glitch_prompt: null,
-    prompt_type: 'enigma',
-    options: buildEnigmaOptions(
-      'FEUER',
-      [
-        'Fütterst du mich, wachse ich und schenke dir wohlige Wärme.',
-        'Gibst du mir Wasser, vergehe ich in bittergrauem Rauch.',
-        'Ich habe keine Knochen, doch tanze ich wild im Wind.',
-        'Ein winziger Funke genügt, um mich zu wecken. Wer bin ich?'
-      ],
-      'Geboren aus dem Funken, hungrig nach Holz.'
-    )
-  },
-  {
-    prompt: 'Die Welle ist in 4 Fragmente zerbrochen. Tauscht euch aus und findet das gemeinsame Lösungswort.',
+    prompt: 'Ein altes Siegel liegt zerbrochen vor euch. Setzt eure Zeilen zusammen.',
     glitch_prompt: null,
     prompt_type: 'enigma',
     options: buildEnigmaOptions(
       'KOMPASS',
       [
-        'Ich habe keine Augen und schaue stets starr nach Norden.',
-        'Inmitten tosender Stürme bleibe ich unerschütterlich ausgerichtet.',
-        'Mein Zeiger tanzt auf dem unsichtbaren Magnetfeld der Erde.',
-        'Seefahrer vertrauen mir ihr Leben und ihren Kurs an. Wer bin ich?'
+        '1. Zeile: Aus vier Winden formt sich der Pfad,',
+        '2. Zeile: Kein Stern verliert, wer den Norden bat.',
+        '3. Zeile: Die Nadel zittert im Kupfergehäuse,',
+        '4. Zeile: Sieben Buchstaben weisen die Heimkehr.'
       ],
-      'Ein 7-stelliges Navigationsinstrument.'
+      'Ein Instrument für Reisende'
     )
   },
   {
-    prompt: 'Die Welle ist in 4 Fragmente zerbrochen. Tauscht euch aus und findet das gemeinsame Lösungswort.',
+    prompt: 'Die alte Tafel wurde in vier Bruchstücke geteilt. Findet das Lösungswort.',
     glitch_prompt: null,
     prompt_type: 'enigma',
     options: buildEnigmaOptions(
-      'ECHO',
+      'SPIEGEL',
       [
-        'Ich habe keine eigene Stimme, doch ich antworte jedem deiner Rufe.',
-        'In tiefen Bergtälern und verlassenen Hallen bin ich zuhause.',
-        'Ich wiederhole deine letzten Worte, doch verstehe keines davon.',
-        'Mit jedem Schritt, den du weitergehst, verblasse ich. Wer bin ich?'
+        'Teil 1: Glas und Silber im Dämmerlicht,',
+        'Teil 2: Zeigt dein Antlitz, spricht doch nicht.',
+        'Teil 3: Verdoppelt den Raum mit stummer Gebärde,',
+        'Teil 4: Bricht entzwei, wenn es fällt zur Erde.'
       ],
-      'Ich spreche erst, wenn du geschwiegen hast.'
+      'Täglicher Blick'
     )
   },
 
-  // VIBE CHECK & BILD-DILEMMA 🎭
+  // DILEMMA & TIEFSINNIGE ENTSCHEIDUNG ⚡
   {
-    prompt: 'Bist du heute eher das übermüdete Faultier oder die hyperaktive Hummel?',
-    glitch_prompt: null,
-    prompt_type: 'vibe',
-    options: buildVibeOptions([
-      {
-        id: 'opt_1',
-        title: 'Zen-Faultier',
-        prompt: 'cute sleepy cartoon sloth hugging a cup of herbal tea, cozy aesthetic illustration, minimalist',
-        imageUrl: 'https://image.pollinations.ai/prompt/cute%20sleepy%20cartoon%20sloth%20hugging%20a%20cup%20of%20herbal%20tea%2C%20cozy%20aesthetic%20illustration?width=512&height=512&nologo=true&seed=42'
-      },
-      {
-        id: 'opt_2',
-        title: 'Hyperaktive Hummel',
-        prompt: 'cute energetic bee zooming with speed trails holding a tiny espresso cup, vibrant cartoon illustration',
-        imageUrl: 'https://image.pollinations.ai/prompt/cute%20energetic%20bee%20zooming%20with%20speed%20trails%20holding%20a%20tiny%20espresso%20cup%2C%20vibrant%20cartoon?width=512&height=512&nologo=true&seed=99'
-      }
-    ])
+    prompt: 'Wenn du heute eine Erinnerung an diesen Tag für immer konservieren müsstest:',
+    glitch_prompt: 'Wenn du heute eine peinliche oder banale Kleinigkeit sofort auslöschen könntest:',
+    prompt_type: 'choice',
+    options: [
+      'Ein Geräusch oder ein Lied, das lief',
+      'Ein Blick oder ein ungesagtes Wort'
+    ]
   },
   {
-    prompt: 'Welcher Zustand beschreibt deinen heutigen Modus am besten?',
+    prompt: 'Was wiegt heute schwerer in deinen Gedanken?',
+    glitch_prompt: null,
+    prompt_type: 'choice',
+    options: [
+      'Was noch vor dir liegt',
+      'Was du bereits hinter dir gelassen hast'
+    ]
+  },
+
+  // FREITEXT & TIEFGANG ✍️
+  {
+    prompt: 'Welcher Gedanke ist dir heute wiederholt durch den Kopf gegangen, ohne dass du ihn eingeladen hast?',
+    glitch_prompt: 'Was ist der absurdeste oder belangloseste Gedanke, den du heute hattest?',
+    prompt_type: 'text',
+    options: null
+  },
+  {
+    prompt: 'Was hast du heute getan, das niemand gesehen hat?',
+    glitch_prompt: 'Was hast du heute getan, das du lieber ungeschehen machen würdest?',
+    prompt_type: 'text',
+    options: null
+  },
+  {
+    prompt: 'Beschreibe mit genau 3 Worten den Raum, in dem du dich gerade befindest.',
+    glitch_prompt: 'Beschreibe mit genau 3 Worten das Gegenteil des Raumes, in dem du dich befindest.',
+    prompt_type: 'text',
+    options: null
+  },
+
+  // VIBE-CHECK / BILD-DILEMMA 🎭
+  {
+    prompt: 'Welcher Charakter spiegelt deinen Zustand gerade besser wider?',
     glitch_prompt: null,
     prompt_type: 'vibe',
     options: buildVibeOptions([
@@ -201,90 +187,23 @@ const CURATED_PROMPTS = [
   },
 ]
 
-export async function POST(req: Request) {
-  let lockedWaveId: string | null = null
+async function generateWaveContent(
+  previousWaves: any[],
+  members: any[],
+  nextNumber: number
+): Promise<{ prompt: string; prompt_type: string; options: string[] | null }> {
+  let contextText = ''
+  if (previousWaves && previousWaves.length > 0) {
+    contextText = 'Bisherige Wellen und Antworten der Gruppe:\n' + previousWaves.map(w => {
+      const respList = (w.responses || []).map((r: any) => `"${r.content}"`).join(', ')
+      return `Welle ${w.number}: Frage "${w.prompt}" | Antworten: [${respList}]`
+    }).join('\n')
+  }
 
-  try {
-    let force = false
-    try {
-      const body = await req.json()
-      force = !!body?.force
-    } catch {
-      // kein JSON body
-    }
+  const memberList = members || []
+  const isAnomaly = memberList.length >= 2 && (nextNumber % 3 === 0 || Math.random() < 0.25)
 
-    // 0. Prüfen, ob bereits eine aktive Welle existiert oder Cooldown noch läuft
-    if (!force) {
-      const { data: latestActive } = await supabase
-        .from('waves')
-        .select('*')
-        .order('number', { ascending: false })
-        .limit(1)
-
-      if (latestActive && latestActive.length > 0) {
-        const topWave = latestActive[0]
-        if (topWave.status === 'active') {
-          return NextResponse.json({ success: true, wave: topWave, deduplicated: true })
-        }
-
-        // Wenn die Welle im Cooldown ist: Prüfen, ob die Zeit abgelaufen ist
-        if (topWave.status === 'cooldown' && topWave.next_wave_at) {
-          const isTimeUp = new Date(topWave.next_wave_at).getTime() <= Date.now()
-          if (!isTimeUp) {
-            return NextResponse.json({ success: false, message: 'Cooldown noch aktiv', wave: topWave })
-          }
-
-          // Atomare Sperre: next_wave_at um 5 Minuten in die Zukunft verschieben,
-          // aber NUR wenn next_wave_at <= now() ist.
-          // Nur ein einziger Aufruf (von mehreren gleichzeitigen Clients oder Cron) gewinnt diesen Lock.
-          const lockTime = new Date(Date.now() + 5 * 60 * 1000).toISOString()
-          const { data: claimed } = await supabase
-            .from('waves')
-            .update({ next_wave_at: lockTime })
-            .eq('id', topWave.id)
-            .eq('status', 'cooldown')
-            .lte('next_wave_at', new Date().toISOString())
-            .select()
-
-          if (!claimed || claimed.length === 0) {
-            // Ein anderer Client oder Cron generiert die nächste Welle bereits
-            return NextResponse.json({ success: true, wave: topWave, inProgress: true })
-          }
-
-          lockedWaveId = topWave.id
-        }
-      }
-    }
-
-    // 1. Vorherige Wellen und Mitglieder holen
-    const [{ data: previousWaves }, { data: members }] = await Promise.all([
-      supabase
-        .from('waves')
-        .select('number, prompt, responses(content)')
-        .order('number', { ascending: false })
-        .limit(5),
-      supabase
-        .from('members')
-        .select('id, name')
-    ])
-
-    const nextNumber = previousWaves && previousWaves.length > 0
-      ? Math.max(...previousWaves.map(w => w.number)) + 1
-      : 1
-
-    let contextText = ''
-    if (previousWaves && previousWaves.length > 0) {
-      contextText = 'Bisherige Wellen und Antworten der Gruppe:\n' + previousWaves.map(w => {
-        const respList = (w.responses || []).map((r: any) => `"${r.content}"`).join(', ')
-        return `Welle ${w.number}: Frage "${w.prompt}" | Antworten: [${respList}]`
-      }).join('\n')
-    }
-
-    // Bestimme, ob diese Welle eine Asymmetrische Anomalie ("Der Flüsterer") ist (z. B. jede 3. oder 4. Welle)
-    const memberList = members || []
-    const isAnomaly = memberList.length >= 2 && (nextNumber % 3 === 0 || Math.random() < 0.25)
-
-    const systemPrompt = `Du bist die mysteriöse, poetische und verbindende Intelligenz der Web-App "Welle".
+  const systemPrompt = `Du bist die mysteriöse, poetische und verbindende Intelligenz der Web-App "Welle".
 Die Nutzer sind 4 gute Freunde, die zusammen lernen, aber im Alltag getrennt leben.
 Deine Aufgabe ist es, die NÄCHSTE Welle zu kreieren.
 
@@ -298,118 +217,232 @@ WICHTIGSTE REGEL: ABWECHSLUNG! Wechsle aktiv zwischen Formaten ab:
 - "enigma": Kooperatives 4-teiliges poetisches Rätsel. "options" MUSS sein: ["__solution__:WORT", "__hint__:Ein kurzer Tipp", "Fragment 1", "Fragment 2", "Fragment 3", "Fragment 4"]
 - "vibe": Humorvolles Bild-Dilemma / Vibe-Check ("Bist du heute eher X oder Y?"). "options" MUSS ein Array von 2 oder 3 Objekten sein: [{"title": "Witziger Titel A", "image_prompt": "englischer Prompt für humorvolle Cartoon/Comic Illustration A"}, {"title": "Witziger Titel B", "image_prompt": "englischer Prompt für humorvolle Cartoon/Comic Illustration B"}]
 
-${isAnomaly ? `ANOMALIE-MODUS AKTIV: Diese Welle ist eine geheime Asymmetrie ("Der Flüsterer"). 
-Erstelle neben "prompt" ein zusätzliches Feld "glitch_prompt". Das ist eine geheime, leicht gespiegelte oder veränderte Aufforderung, die genau einem Freund heimlich untergeschoben wird (z.B. Normal: "Zeichne etwas, das dir Kraft gibt" vs. Glitch: "Zeichne etwas, das dir Kraft raubt" oder Normal: "Fotografiere etwas Altes" vs. Glitch: "Fotografiere etwas Brandneues").` : ''}
+WICHTIG für Bild-Dilemma ("vibe"):
+- "image_prompt" muss auf ENGLISCH sein, bildhaft, cartoon/comicartig, liebenswert und witzig (z.B. "funny stressed raccoon with messy desk" oder "serene capybara in hot spring").
 
-Beziehe dich subtil auf frühere Stimmungen der Gruppe. Halte Aufforderungen prägnant und poetisch.
-Gib AUSSCHLIESSLICH valides JSON zurück:
+Format-Regeln:
+${isAnomaly ? `- ANOMALIE AKTIV ("Der Flüsterer"): Erzeuge "glitch_prompt" (eine verdrehte, geheime Variante für genau einen Spieler!).` : '- Keine Anomalie: "glitch_prompt" ist null.'}
+
+Kontext:
+${contextText}
+
+Antworte STRIKT im JSON-Format:
 {
-  "prompt": "Deine Aufforderung hier",
-  "prompt_type": "spectrum" | "photo" | "draw" | "choice" | "text" | "silence" | "enigma" | "vibe",
-  "options": ["Option/Pol A", "Option/Pol B"] | null,
-  ${isAnomaly ? '"glitch_prompt": "Die geheime abweichende Flüster-Aufforderung",' : ''}
+  "prompt": "Die Hauptfrage / Anweisung an alle",
+  "prompt_type": "text" | "choice" | "draw" | "photo" | "spectrum" | "silence" | "enigma" | "vibe",
+  "options": ["Option 1", "Option 2"] | null,
+  "glitch_prompt": "Verdrehte geheime Variante für den Flüsterer" | null
 }`
 
-    let parsed: any = null
+  let parsed: any = null
 
-    // 2. Primär: Gemini 3.5-flash-lite aufrufen
-    if (geminiApiKey) {
-      try {
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiApiKey}`
-        const response = await fetch(geminiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: `${systemPrompt}\n\n${contextText}\n\nGeneriere jetzt Welle ${nextNumber}. Antworte nur mit reinem JSON.` }
-                ]
-              }
-            ]
-          })
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-          rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim()
-          parsed = JSON.parse(rawText)
-        }
-      } catch (e) {
-        console.warn('Gemini generation failed, falling back to curated pool:', e)
-      }
-    }
-
-    // 3. Intelligenter Pool-Fallback
-    if (!parsed || !parsed.prompt) {
-      const pastPrompts = (previousWaves || []).map(w => w.prompt)
-      const available = CURATED_PROMPTS.filter(p => !pastPrompts.includes(p.prompt))
-      parsed = available.length > 0
-        ? available[Math.floor(Math.random() * available.length)]
-        : CURATED_PROMPTS[nextNumber % CURATED_PROMPTS.length]
-    }
-
-    // 3.5 Vibe-Optionen transformieren falls nötig
-    if (parsed && parsed.prompt_type === 'vibe' && Array.isArray(parsed.options)) {
-      const isAlreadyBuilt = parsed.options.some((o: any) => typeof o === 'string' && o.startsWith('__vibe__:'))
-      if (!isAlreadyBuilt) {
-        const seedBase = Math.floor(Math.random() * 90000) + 10000
-        const vibeItems = parsed.options.map((opt: any, idx: number) => {
-          const title = typeof opt === 'string' ? opt : (opt.title || `Vibe ${idx + 1}`)
-          const imgPrompt = (typeof opt === 'object' && opt.image_prompt)
-            ? opt.image_prompt
-            : `${title} funny cute cartoon character, vibrant comic illustration`
-          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imgPrompt)}?width=512&height=512&nologo=true&seed=${seedBase + idx}`
-          return {
-            id: `opt_${idx + 1}`,
-            title,
-            prompt: imgPrompt,
-            imageUrl,
+  if (geminiApiKey) {
+    try {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${geminiApiKey}`
+      const response = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: systemPrompt }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.9,
           }
         })
-        parsed.options = buildVibeOptions(vibeItems)
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+        rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim()
+        parsed = JSON.parse(rawText)
+      }
+    } catch (e) {
+      console.warn('Gemini generation failed, falling back to curated pool:', e)
+    }
+  }
+
+  // Intelligenter Pool-Fallback
+  if (!parsed || !parsed.prompt) {
+    const pastPrompts = (previousWaves || []).map(w => w.prompt)
+    const available = CURATED_PROMPTS.filter(p => !pastPrompts.includes(p.prompt))
+    parsed = available.length > 0
+      ? available[Math.floor(Math.random() * available.length)]
+      : CURATED_PROMPTS[nextNumber % CURATED_PROMPTS.length]
+  }
+
+  // Vibe-Optionen transformieren falls nötig
+  if (parsed && parsed.prompt_type === 'vibe' && Array.isArray(parsed.options)) {
+    const isAlreadyBuilt = parsed.options.some((o: any) => typeof o === 'string' && o.startsWith('__vibe__:'))
+    if (!isAlreadyBuilt) {
+      const seedBase = Math.floor(Math.random() * 90000) + 10000
+      const vibeItems = parsed.options.map((opt: any, idx: number) => {
+        const title = typeof opt === 'string' ? opt : (opt.title || `Vibe ${idx + 1}`)
+        const imgPrompt = (typeof opt === 'object' && opt.image_prompt)
+          ? opt.image_prompt
+          : `${title} funny cute cartoon character, vibrant comic illustration`
+        const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imgPrompt)}?width=512&height=512&nologo=true&seed=${seedBase + idx}`
+        return {
+          id: `opt_${idx + 1}`,
+          title,
+          prompt: imgPrompt,
+          imageUrl,
+        }
+      })
+      parsed.options = buildVibeOptions(vibeItems)
+    }
+  }
+
+  let finalOptions: string[] | null = Array.isArray(parsed.options) ? parsed.options : null
+
+  if (isAnomaly && memberList.length >= 2) {
+    const glitchPrompt = parsed.glitch_prompt || 'Zeige oder beschreibe das genaue Gegenteil deines ersten Impulses.'
+    const luckyMember = memberList[Math.floor(Math.random() * memberList.length)]
+    finalOptions = attachGlitchToOptions(finalOptions, luckyMember.id, luckyMember.name, glitchPrompt)
+  }
+
+  return {
+    prompt: parsed.prompt,
+    prompt_type: parsed.prompt_type || 'text',
+    options: finalOptions,
+  }
+}
+
+export async function POST(req: Request) {
+  let lockedWaveId: string | null = null
+
+  try {
+    const body = await req.json().catch(() => ({}))
+    const force = !!body?.force
+    const prepareOnly = !!body?.prepareOnly
+    const targetWaveId = body?.waveId
+
+    // -------------------------------------------------------------
+    // MODUS A: PRE-GENERATE IM HINTERGRUND WÄHREND DES COOLDOWNS
+    // -------------------------------------------------------------
+    if (prepareOnly) {
+      let waveToPrepare: any = null
+      if (targetWaveId) {
+        const { data } = await supabase.from('waves').select('*').eq('id', targetWaveId).single()
+        waveToPrepare = data
+      } else {
+        const { data } = await supabase.from('waves').select('*').order('number', { ascending: false }).limit(1)
+        waveToPrepare = data?.[0]
+      }
+
+      if (!waveToPrepare) return NextResponse.json({ error: 'Wave not found' }, { status: 404 })
+
+      // Wenn bereits vorbereitet, nichts tun
+      const existing = extractPreparedWave(waveToPrepare.options)
+      if (existing) {
+        return NextResponse.json({ success: true, alreadyPrepared: true })
+      }
+
+      const [{ data: previousWaves }, { data: members }] = await Promise.all([
+        supabase.from('waves').select('number, prompt, responses(content)').order('number', { ascending: false }).limit(5),
+        supabase.from('members').select('id, name')
+      ])
+
+      const nextNumber = waveToPrepare.number + 1
+      const preparedContent = await generateWaveContent(previousWaves || [], members || [], nextNumber)
+
+      const updatedOptions = attachPreparedWaveToOptions(waveToPrepare.options, preparedContent)
+      await supabase.from('waves').update({ options: updatedOptions }).eq('id', waveToPrepare.id)
+
+      return NextResponse.json({ success: true, prepared: true })
+    }
+
+    // -------------------------------------------------------------
+    // MODUS B: ECHTE AKTIVIERUNG BEI COUNTDOWN = 0
+    // -------------------------------------------------------------
+    let topWave: any = null
+    if (!force) {
+      const { data: latestActive } = await supabase
+        .from('waves')
+        .select('*')
+        .order('number', { ascending: false })
+        .limit(1)
+
+      if (latestActive && latestActive.length > 0) {
+        topWave = latestActive[0]
+        if (topWave.status === 'active') {
+          return NextResponse.json({ success: true, wave: topWave, deduplicated: true })
+        }
+
+        // Wenn die Welle im Cooldown ist: Prüfen, ob die Zeit abgelaufen ist
+        if (topWave.status === 'cooldown' && topWave.next_wave_at) {
+          const isTimeUp = new Date(topWave.next_wave_at).getTime() <= Date.now()
+          if (!isTimeUp) {
+            return NextResponse.json({ success: false, message: 'Cooldown noch aktiv', wave: topWave })
+          }
+
+          // Atomare Sperre: next_wave_at um 5 Minuten in die Zukunft verschieben
+          const lockTime = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+          const { data: claimed } = await supabase
+            .from('waves')
+            .update({ next_wave_at: lockTime })
+            .eq('id', topWave.id)
+            .eq('status', 'cooldown')
+            .lte('next_wave_at', new Date().toISOString())
+            .select()
+
+          if (!claimed || claimed.length === 0) {
+            return NextResponse.json({ success: true, wave: topWave, inProgress: true })
+          }
+
+          lockedWaveId = topWave.id
+        }
       }
     }
 
-    // 4. Glitch-Optionen zusammenstellen falls Anomalie
-    let finalOptions: string[] | null = Array.isArray(parsed.options) ? parsed.options : null
+    // Vorherige Wellen und Mitglieder holen
+    const [{ data: previousWaves }, { data: members }] = await Promise.all([
+      supabase.from('waves').select('number, prompt, responses(content)').order('number', { ascending: false }).limit(5),
+      supabase.from('members').select('id, name')
+    ])
 
-    if (isAnomaly && memberList.length >= 2) {
-      const glitchPrompt = parsed.glitch_prompt || 'Zeige oder beschreibe das genaue Gegenteil deines ersten Impulses.'
-      // Wähle ein zufälliges Mitglied als Flüsterer
-      const luckyMember = memberList[Math.floor(Math.random() * memberList.length)]
-      finalOptions = attachGlitchToOptions(finalOptions, luckyMember.id, luckyMember.name, glitchPrompt)
+    const nextNumber = previousWaves && previousWaves.length > 0
+      ? Math.max(...previousWaves.map(w => w.number)) + 1
+      : 1
+
+    // Prüfen, ob bereits vorab vorbereitete Inhalte vorliegen (Zero Latency!)
+    const cachedPrepared = topWave ? extractPreparedWave(topWave.options) : null
+    let content: { prompt: string; prompt_type: string; options: string[] | null }
+
+    if (cachedPrepared && !force) {
+      content = cachedPrepared
+    } else {
+      content = await generateWaveContent(previousWaves || [], members || [], nextNumber)
     }
 
-    // 5. Neue Welle in Supabase speichern
-    const { data: newWave, error: insertError } = await supabase
-      .from('waves')
-      .insert({
-        number: nextNumber,
-        prompt: parsed.prompt,
-        prompt_type: parsed.prompt_type || 'text',
-        options: finalOptions,
-        status: 'active',
-      })
-      .select()
-      .single()
-
-    if (insertError) throw insertError
-
-    // Web Push an alle Mitglieder senden
-    try {
-      await sendPushToMembers({
+    // Neue Welle speichern UND Web Push zeitgleich absenden!
+    const [insertResult] = await Promise.all([
+      supabase
+        .from('waves')
+        .insert({
+          number: nextNumber,
+          prompt: content.prompt,
+          prompt_type: content.prompt_type || 'text',
+          options: content.options,
+          status: 'active',
+        })
+        .select()
+        .single(),
+      sendPushToMembers({
         payload: {
           title: `Welle ${nextNumber} ist da ∿`,
-          body: parsed.prompt,
+          body: content.prompt,
           url: '/',
-          tag: `wave-${newWave.id}`,
+          tag: `wave-${nextNumber}`,
         },
-      })
-    } catch (pushErr) {
-      console.warn('[Push] Failed to dispatch push for new wave:', pushErr)
-    }
+      }).catch(err => {
+        console.warn('[Push] Dispatch error:', err)
+        return null
+      }),
+    ])
+
+    const { data: newWave, error: insertError } = insertResult
+    if (insertError) throw insertError
 
     return NextResponse.json({ success: true, wave: newWave })
   } catch (error: any) {

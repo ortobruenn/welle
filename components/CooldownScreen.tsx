@@ -84,28 +84,18 @@ export default function CooldownScreen({ wave, memberId, onWaveReady }: Props) {
         ∿
       </div>
 
-      {isWaiting && wave.next_wave_at ? (
-        <div className="text-center animate-fade-in">
-          <div
-            className="font-display text-6xl font-light tracking-widest mb-4"
-            style={{ color: '#e8e4de' }}
-          >
-            {pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}
-          </div>
-          <p className="text-xs tracking-[0.3em] uppercase" style={{ color: '#6b6560' }}>
-            bis zur nächsten welle
-          </p>
+      <div className="text-center animate-fade-in">
+        <div
+          className={`font-display text-6xl font-light tracking-widest mb-4 transition-all duration-300 ${
+            timeLeft.total <= 0 ? 'text-[#c8a065] animate-pulse scale-105' : 'text-[#e8e4de]'
+          }`}
+        >
+          {pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}
         </div>
-      ) : (
-        <div className="text-center animate-fade-in">
-          <p className="text-sm tracking-[0.25em] uppercase mb-2" style={{ color: '#6b6560' }}>
-            Welle {wave.number} abgeschlossen
-          </p>
-          <p className="text-xs tracking-[0.2em] uppercase" style={{ color: '#3a3a3a' }}>
-            die nächste welle wird vorbereitet
-          </p>
-        </div>
-      )}
+        <p className="text-xs tracking-[0.3em] uppercase transition-colors" style={{ color: timeLeft.total <= 0 ? '#c8a065' : '#6b6560' }}>
+          {timeLeft.total <= 0 ? 'Welle öffnet sich...' : 'bis zur nächsten welle'}
+        </p>
+      </div>
 
       <p
         className="absolute bottom-10 text-xs tracking-[0.3em] uppercase"

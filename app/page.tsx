@@ -115,6 +115,13 @@ export default function Home() {
             .update({ status: 'cooldown', next_wave_at: nextWaveDate })
             .eq('id', currentWave.id)
           setAppState('cooldown')
+
+          // Nächste Welle sofort im Hintergrund vorbereiten, damit sie bei Timer = 0 verzögerungsfrei bereitsteht!
+          fetch('/api/generate-wave', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prepareOnly: true, waveId: currentWave.id }),
+          }).catch(err => console.warn('Pre-generation error:', err))
         } else {
           // Dieser Nutzer wartet, bis die anderen es auch gelesen haben
           setAppState('waiting_cooldown')
@@ -132,7 +139,7 @@ export default function Home() {
         // Hat es verpasst während offline -> ZUERST Enthüllung nachholen!
         setAppState('reveal')
       } else {
-        // Wenn der gemeinsame Cooldown abgelaufen ist -> Automatisch nächste Welle per Gemini
+        // Wenn der gemeinsame Cooldown abgelaufen ist -> Sofort neue Welle aktivieren
         if (currentWave.next_wave_at && new Date(currentWave.next_wave_at).getTime() <= Date.now()) {
           if (!isGeneratingWaveRef.current) {
             isGeneratingWaveRef.current = true
@@ -147,6 +154,13 @@ export default function Home() {
             await loadAppState(memberId)
             return
           }
+        } else {
+          // Während des Cooldowns im Hintergrund sicherstellen, dass die nächste Welle fertig vorbereitet ist
+          fetch('/api/generate-wave', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prepareOnly: true, waveId: currentWave.id }),
+          }).catch(() => {})
         }
         setAppState('cooldown')
       }
