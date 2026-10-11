@@ -165,7 +165,7 @@ export default function Home() {
           localStorage.removeItem('welle_member_name')
         }
       }
-      setTimeout(() => setAppState('mystery'), 400)
+      setTimeout(() => setAppState('join'), 300)
     }
 
     initSession()
