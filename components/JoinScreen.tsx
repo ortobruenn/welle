@@ -3,10 +3,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 
 interface Props {
-  onJoin: (name: string) => Promise<void>
+  onJoin: (name: string, enablePush?: boolean) => Promise<void>
 }
 
-type Stage = 'frequency' | 'seal' | 'name'
+type Stage = 'frequency' | 'seal' | 'name' | 'signal'
 
 const TARGET_FREQ = 432
 const FREQ_TOLERANCE = 14
@@ -224,15 +224,19 @@ export default function JoinScreen({ onJoin }: Props) {
   const [nameError, setNameError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const handleNameSubmit = async () => {
+  const handleNameSubmit = () => {
     if (name.trim().length < 2) {
       setNameError('Wähle mindestens 2 Zeichen.')
       return
     }
     setNameError('')
+    setStage('signal')
+  }
+
+  const handleFinishJoin = async (enablePush: boolean) => {
     setSubmitting(true)
     try {
-      await onJoin(name.trim())
+      await onJoin(name.trim(), enablePush)
     } catch {
       setNameError('Einweihung fehlgeschlagen. Bitte erneut versuchen.')
       setSubmitting(false)
@@ -467,7 +471,46 @@ export default function JoinScreen({ onJoin }: Props) {
               disabled={submitting || name.trim().length < 2}
               className="w-full py-4 text-xs tracking-[0.3em] uppercase border border-[#c8a065] text-[#c8a065] hover:bg-[#c8a065]/10 disabled:opacity-25 transition-all shadow-[0_0_15px_rgba(200,160,101,0.1)] font-medium"
             >
-              {submitting ? '···' : 'Dem Zirkel beitreten →'}
+              Weiter →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* STAGE 4: DAS SIGNAL VERANKERN (PUSH-BENACHRICHTIGUNG)                      */}
+      {/* ========================================================================= */}
+      {stage === 'signal' && (
+        <div className="w-full max-w-sm flex flex-col items-center text-center animate-fade-up z-10 px-4">
+          <div className="font-display text-6xl text-[#c8a065] mb-6 animate-pulse">
+            🔔
+          </div>
+
+          <div className="text-[11px] tracking-[0.35em] uppercase text-[#6b6560] mb-2">
+            Letzter Schritt · Verbindung
+          </div>
+          <h2 className="font-display text-2xl text-[#e8e4de] font-light mb-3">
+            Das Signal der Welle
+          </h2>
+          <p className="text-xs text-[#8a847d] leading-relaxed mb-8 max-w-xs">
+            Die Welle ruft dich, sobald alle Freunde geantwortet haben oder der nächste Impuls beginnt.
+          </p>
+
+          <div className="w-full flex flex-col gap-4">
+            <button
+              onClick={() => handleFinishJoin(true)}
+              disabled={submitting}
+              className="w-full py-4 text-xs tracking-[0.25em] uppercase bg-[#c8a065] text-[#0a0a0a] rounded font-semibold transition-all shadow-[0_0_20px_rgba(200,160,101,0.3)] hover:opacity-90 active:scale-95 cursor-pointer"
+            >
+              {submitting ? '···' : 'Signal empfangen (Push an) →'}
+            </button>
+
+            <button
+              onClick={() => handleFinishJoin(false)}
+              disabled={submitting}
+              className="py-2 text-xs tracking-[0.2em] uppercase text-[#6b6560] hover:text-[#a09990] transition-colors cursor-pointer"
+            >
+              Später einrichten →
             </button>
           </div>
         </div>

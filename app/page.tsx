@@ -10,6 +10,7 @@ import WaitingScreen from '@/components/WaitingScreen'
 import RevealScreen from '@/components/RevealScreen'
 import CooldownScreen from '@/components/CooldownScreen'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt'
+import { subscribeToPush } from '@/lib/pushClient'
 
 type AppState = 'loading' | 'mystery' | 'join' | 'wave' | 'waiting' | 'reveal' | 'waiting_cooldown' | 'cooldown'
 
@@ -160,6 +161,17 @@ export default function Home() {
   useEffect(() => {
     // Check existing session
     const initSession = async () => {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search)
+        if (params.has('reset')) {
+          localStorage.removeItem('welle_member_id')
+          localStorage.removeItem('welle_member_name')
+          setMember(null)
+          setAppState('join')
+          return
+        }
+      }
+
       const storedId = localStorage.getItem('welle_member_id')
       const storedName = localStorage.getItem('welle_member_name')
 
@@ -223,7 +235,7 @@ export default function Home() {
     return () => { supabase.removeChannel(channel) }
   }, [member, loadAppState, fetchMembers])
 
-  const handleJoin = async (name: string) => {
+  const handleJoin = async (name: string, enablePush?: boolean) => {
     const memberId = crypto.randomUUID()
     await supabase.from('members').insert({ id: memberId, name })
     localStorage.setItem('welle_member_id', memberId)
@@ -231,6 +243,13 @@ export default function Home() {
     const memberData: Member = { id: memberId, name, created_at: new Date().toISOString() }
     setMember(memberData)
     await fetchMembers()
+    if (enablePush) {
+      try {
+        await subscribeToPush(memberId)
+      } catch (err) {
+        console.warn('Push subscribe error during join:', err)
+      }
+    }
     await loadAppState(memberId)
   }
 
