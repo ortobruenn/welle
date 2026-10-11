@@ -19,9 +19,10 @@ const CURATED_PROMPTS = [
   { prompt: 'Ein Blick aus deinem nächsten Fenster – zeig uns den Himmel über deiner Stadt.', prompt_type: 'photo', options: null },
   { prompt: 'Fotografiere eine Textur (Holz, Beton, Stoff, Kaffeeschaum), die du heute berührt hast.', prompt_type: 'photo', options: null },
 
-  // PULS & RESONANZ ∿
-  { prompt: 'Schließe für einen Atemzug die Augen und halte das Wellen-Symbol berührt.', prompt_type: 'pulse', options: null },
-  { prompt: 'Ein gemeinsamer Puls über die Distanz. Berühre das Zentrum für 10 Sekunden.', prompt_type: 'pulse', options: null },
+  // SPEKTRUM & POLARITÄTEN ⚖️
+  { prompt: 'Wo schlägt heute dein inneres Pendel aus?', prompt_type: 'spectrum', options: ['Kühler Verstand', 'Blinde Intuition'] },
+  { prompt: 'Dein innerer Energie-Kompass des heutigen Tages:', prompt_type: 'spectrum', options: ['Reine Beobachtung', 'Unbändiger Tatendrang'] },
+  { prompt: 'Wenn etwas schiefgeht – deine erste spontane Regung:', prompt_type: 'spectrum', options: ['Mit Humor nehmen', 'Alles sezieren'] },
 
   // STILLE & ACHTSAMKEIT 🧘
   { prompt: 'Nimm dir 20 Sekunden vollkommene Stille. Lass das Rauschen der Welt kurz verblassen.', prompt_type: 'silence', options: null },
@@ -59,16 +60,16 @@ export async function POST() {
     }
 
     // Liste aller verfügbaren Erlebnis-Formate
-    const FORMAT_TYPES = ['draw', 'photo', 'pulse', 'silence', 'choice', 'text'] as const
+    const FORMAT_TYPES = ['draw', 'photo', 'spectrum', 'silence', 'choice', 'text'] as const
 
     const systemPrompt = `Du bist die mysteriöse, poetische und verbindende Intelligenz der Web-App "Welle".
 Die Nutzer sind 4 gute Freunde, die zusammen lernen, aber im Alltag getrennt leben.
 Deine Aufgabe ist es, die NÄCHSTE Welle zu kreieren. 
 
 WICHTIGSTE REGEL: ABWECHSLUNG! Es darf NIEMALS monoton sein. Wechsle aktiv zwischen diesen 6 Formaten ab:
-1. "draw": Eine minimalistische Finger-Zeichnung auf schwarzem Grund (z.B. ein Symbol für heute, ein 3-beiniges Tier, eine Wolke).
+1. "spectrum": Eine philosophische oder persönliche Skala zwischen zwei Extrempolen (z.B. "Kühler Verstand" vs. "Blinde Intuition", "Reiner Tatendrang" vs. "Tiefe Stille"). "options" MUSS genau 2 prägnante Pole enthalten: ["Pol A", "Pol B"].
 2. "photo": Ein Foto-Ausschnitt aus der realen Umgebung (z.B. etwas Rotes, eine bestimmte Textur, der Blick aus dem Fenster).
-3. "pulse": 10 Sekunden Berührung / Puls auf dem Display (Resonanz über die Distanz spüren).
+3. "draw": Eine minimalistische Finger-Zeichnung auf schwarzem Grund (z.B. ein Symbol für heute, ein 3-beiniges Tier, eine Wolke).
 4. "silence": 20-30 Sekunden Achtsamkeit / Stille Minute (innehalten und Augen schließen).
 5. "choice": Ein unerwartetes A/B-Dilemma oder eine skurrile Entscheidung.
 6. "text": Ein kurzer, tiefgründiger Gedanke oder Alltagsbeobachtung.
@@ -77,8 +78,8 @@ Beziehe dich subtil auf frühere Stimmungen der Gruppe. Halte die Aufforderung k
 Gib AUSSCHLIESSLICH ein valides JSON zurück:
 {
   "prompt": "Deine Aufforderung hier",
-  "prompt_type": "draw" | "photo" | "pulse" | "silence" | "choice" | "text",
-  "options": ["Option A", "Option B"] // NUR wenn prompt_type "choice" ist, sonst null
+  "prompt_type": "spectrum" | "photo" | "draw" | "silence" | "choice" | "text",
+  "options": ["Option/Pol A", "Option/Pol B"] // Pflicht für "spectrum" und "choice", sonst null
 }`
 
     let parsed: any = null

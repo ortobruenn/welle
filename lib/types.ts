@@ -9,6 +9,7 @@ export type WavePromptType =
   | 'choice' 
   | 'draw' 
   | 'photo' 
+  | 'spectrum'
   | 'pulse' 
   | 'silence'
 

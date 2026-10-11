@@ -6,6 +6,7 @@ import DrawCanvas from './DrawCanvas'
 import PhotoCapture from './PhotoCapture'
 import PulseTouch from './PulseTouch'
 import SilenceMoment from './SilenceMoment'
+import SpectrumSlider from './SpectrumSlider'
 
 interface Props {
   wave: Wave
@@ -130,14 +131,25 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
           </div>
         )}
 
-        {/* 5. PULSE TOUCH (HOLD) */}
+        {/* 5. SPECTRUM (POLARITÄTEN) */}
+        {wave.prompt_type === 'spectrum' && (
+          <div className="animate-fade-up w-full flex justify-center" style={{ animationDelay: '300ms' }}>
+            <SpectrumSlider
+              poleA={wave.options?.[0] || 'Pol A'}
+              poleB={wave.options?.[1] || 'Pol B'}
+              onComplete={(payload) => handleSubmit(payload)}
+            />
+          </div>
+        )}
+
+        {/* 6. PULSE TOUCH (HOLD) */}
         {wave.prompt_type === 'pulse' && (
           <div className="animate-fade-up w-full flex justify-center" style={{ animationDelay: '300ms' }}>
             <PulseTouch onComplete={() => handleSubmit('Resonanz geteilt')} />
           </div>
         )}
 
-        {/* 6. SILENCE MOMENT */}
+        {/* 7. SILENCE MOMENT */}
         {wave.prompt_type === 'silence' && (
           <div className="animate-fade-up w-full flex justify-center" style={{ animationDelay: '300ms' }}>
             <SilenceMoment onComplete={() => handleSubmit('Stille vollzogen')} />

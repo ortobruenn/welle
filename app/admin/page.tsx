@@ -62,7 +62,7 @@ export default function AdminPage() {
     setLoading(true)
 
     const nextNumber = waves.length > 0 ? Math.max(...waves.map(w => w.number)) + 1 : 1
-    const options = newType === 'choice'
+    const options = (newType === 'choice' || newType === 'spectrum')
       ? newOptions.split('\n').map(o => o.trim()).filter(Boolean)
       : null
 
@@ -241,20 +241,20 @@ export default function AdminPage() {
         </h2>
         <div className="grid grid-cols-2 gap-3">
           <button
+            onClick={() => handleQuickCreate('spectrum', 'Wo schlägt heute dein inneres Pendel aus?', ['Kühler Verstand', 'Blinde Intuition'])}
+            disabled={loading}
+            className="p-3 text-left border border-[#2a2a2a] hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d]"
+          >
+            <span className="block font-medium text-[#e8e4de] mb-1">⚖️ Spektrum-Welle</span>
+            <span className="text-[#6b6560] block text-[11px]">Verstand vs. Intuition</span>
+          </button>
+          <button
             onClick={() => handleQuickCreate('photo', 'Ein Blick aus deinem nächsten Fenster – zeig uns den Himmel über deiner Stadt.')}
             disabled={loading}
             className="p-3 text-left border border-[#2a2a2a] hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d]"
           >
             <span className="block font-medium text-[#e8e4de] mb-1">📷 Foto-Welle</span>
             <span className="text-[#6b6560] block text-[11px]">Kamera / Fotoupload</span>
-          </button>
-          <button
-            onClick={() => handleQuickCreate('pulse', 'Ein gemeinsamer Puls über die Distanz. Berühre das Zentrum für 10 Sekunden.')}
-            disabled={loading}
-            className="p-3 text-left border border-[#2a2a2a] hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d]"
-          >
-            <span className="block font-medium text-[#e8e4de] mb-1">∿ Puls-Welle</span>
-            <span className="text-[#6b6560] block text-[11px]">10s Display halten</span>
           </button>
           <button
             onClick={() => handleQuickCreate('draw', 'Zeichne mit einem Strich ein Symbol, das deinen heutigen Tag einfängt.')}
@@ -285,9 +285,9 @@ export default function AdminPage() {
             {([
               { id: 'text', label: 'Text' },
               { id: 'choice', label: 'Auswahl' },
-              { id: 'draw', label: 'Zeichnen 🎨' },
+              { id: 'spectrum', label: 'Spektrum ⚖️' },
               { id: 'photo', label: 'Foto 📷' },
-              { id: 'pulse', label: 'Puls / Touch ∿' },
+              { id: 'draw', label: 'Zeichnen 🎨' },
               { id: 'silence', label: 'Stille 🧘' },
             ] as const).map(t => (
               <button
@@ -315,14 +315,14 @@ export default function AdminPage() {
             placeholder="Frage / Prompt..."
           />
 
-          {newType === 'choice' && (
+          {(newType === 'choice' || newType === 'spectrum') && (
             <textarea
               value={newOptions}
               onChange={e => setNewOptions(e.target.value)}
-              rows={3}
+              rows={2}
               className="bg-transparent border-b py-2 resize-none focus:outline-none text-sm"
               style={{ borderColor: '#1e1e1e', caretColor: '#c8a065' }}
-              placeholder="Optionen (eine pro Zeile)"
+              placeholder={newType === 'spectrum' ? "Pol A (links)\nPol B (rechts)" : "Optionen (eine pro Zeile)"}
             />
           )}
 

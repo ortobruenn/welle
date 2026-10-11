@@ -75,7 +75,14 @@ export default function WaitingScreen({ wave, responses, totalMembers, userRespo
           <p className="text-xs tracking-[0.2em] uppercase mb-3" style={{ color: '#6b6560' }}>
             Deine Antwort
           </p>
-          {wave.prompt_type === 'pulse' ? (
+          {wave.prompt_type === 'spectrum' ? (
+            <div className="flex items-center gap-3 py-1">
+              <span className="font-display text-2xl text-[#c8a065]">⚖️</span>
+              <p className="text-sm text-[#e8e4de]">
+                Position im Spektrum eingeprägt.
+              </p>
+            </div>
+          ) : wave.prompt_type === 'pulse' ? (
             <div className="flex items-center gap-3 py-1">
               <span className="font-display text-2xl text-[#c8a065] animate-breathe">∿</span>
               <p className="text-sm text-[#e8e4de]">
