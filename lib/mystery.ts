@@ -1,8 +1,10 @@
-export interface GlitchInfo {
+export interface UndercoverInfo {
   memberId: string
   memberName?: string
   prompt: string
 }
+
+export type GlitchInfo = UndercoverInfo
 
 export interface EnigmaData {
   solution: string
@@ -16,12 +18,15 @@ export function extractEcho(options: string[] | null): string | null {
   return item ? item.slice('__echo__:'.length).trim() : null
 }
 
-export function extractGlitch(options: string[] | null): GlitchInfo | null {
+export function extractUndercover(options: string[] | null): UndercoverInfo | null {
   if (!options || !Array.isArray(options)) return null
-  const item = options.find(o => typeof o === 'string' && o.startsWith('__glitch__:'))
+  const item = options.find(
+    o => typeof o === 'string' && (o.startsWith('__undercover__:') || o.startsWith('__glitch__:'))
+  )
   if (!item) return null
-  
-  const raw = item.slice('__glitch__:'.length)
+
+  const prefix = item.startsWith('__undercover__:') ? '__undercover__:' : '__glitch__:'
+  const raw = item.slice(prefix.length)
   const parts = raw.split(':')
   if (parts.length >= 3) {
     const memberId = parts[0]
@@ -35,6 +40,8 @@ export function extractGlitch(options: string[] | null): GlitchInfo | null {
   }
   return null
 }
+
+export const extractGlitch = extractUndercover
 
 export function extractEnigma(options: string[] | null): EnigmaData | null {
   if (!options || !Array.isArray(options)) return null
@@ -98,15 +105,19 @@ export function attachEchoToOptions(options: string[] | null, echo: string): str
   return [...filtered, `__echo__:${echo.trim()}`]
 }
 
-export function attachGlitchToOptions(
+export function attachUndercoverToOptions(
   options: string[] | null,
   memberId: string,
   memberName: string,
-  glitchPrompt: string
+  undercoverPrompt: string
 ): string[] {
-  const filtered = (options || []).filter(o => !o.startsWith('__glitch__:'))
-  return [`__glitch__:${memberId}:${memberName}:${glitchPrompt.trim()}`, ...filtered]
+  const filtered = (options || []).filter(
+    o => !o.startsWith('__undercover__:') && !o.startsWith('__glitch__:')
+  )
+  return [`__undercover__:${memberId}:${memberName}:${undercoverPrompt.trim()}`, ...filtered]
 }
+
+export const attachGlitchToOptions = attachUndercoverToOptions
 
 export interface PreparedWaveData {
   prompt: string

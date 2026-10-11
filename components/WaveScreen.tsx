@@ -28,6 +28,7 @@ export default function WaveScreen({ wave, member, members, onSubmit }: Props) {
 
   const glitch = extractGlitch(wave.options)
   const isGlitchTarget = glitch?.memberId === member.id
+  const isUndercover = wave.prompt_type === 'undercover' || !!glitch
   const displayPrompt = isGlitchTarget ? glitch.prompt : wave.prompt
   const choices = cleanOptions(wave.options)
   const vibeOptions = extractVibeOptions(wave.options)
@@ -76,13 +77,23 @@ export default function WaveScreen({ wave, member, members, onSubmit }: Props) {
         </div>
       </div>
 
-      {/* Secret Anomaly Notice (if this member received the whisper frequency) */}
+      {/* Secret Anomaly Notice */}
       {isGlitchTarget && (
         <div className="mb-6 flex justify-center animate-fade-in">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[#c8a065]/50 bg-[#c8a065]/10 backdrop-blur-sm shadow-[0_0_15px_rgba(200,160,101,0.2)]">
-            <span className="text-xs text-[#c8a065] animate-pulse">⚡</span>
-            <span className="text-[10px] tracking-[0.25em] uppercase text-[#c8a065] font-medium">
-              Geheime Frequenz · Nur du empfängst diesen Impuls
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#c8a065]/60 bg-[#c8a065]/15 backdrop-blur-md shadow-[0_0_20px_rgba(200,160,101,0.25)]">
+            <span className="text-sm text-[#c8a065] animate-pulse">🕵️</span>
+            <span className="text-[11px] tracking-[0.25em] uppercase text-[#c8a065] font-semibold">
+              Schatten-Agent · Geheime Tarn-Mission
+            </span>
+          </div>
+        </div>
+      )}
+      {!isGlitchTarget && isUndercover && (
+        <div className="mb-6 flex justify-center animate-fade-in">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[#333] bg-[#141414]/80 backdrop-blur-sm">
+            <span className="text-xs text-[#c8a065]">⚡</span>
+            <span className="text-[10px] tracking-[0.25em] uppercase text-[#a09990] font-medium">
+              Undercover-Anomalie aktiv
             </span>
           </div>
         </div>
@@ -97,8 +108,19 @@ export default function WaveScreen({ wave, member, members, onSubmit }: Props) {
           {displayPrompt}
         </p>
 
-        {/* 1. TEXT */}
-        {(wave.prompt_type === 'text' || !wave.prompt_type) && (
+        {isGlitchTarget && (
+          <p className="text-xs text-[#a09990] italic mt-[-20px] mb-8 max-w-sm text-center animate-fade-in">
+            💡 <strong className="text-[#c8a065]">Deine Mission:</strong> Tarne deine Antwort so geschickt, dass die Gruppe beim Lüften des Schleiers nicht merkt, dass du diesen Geheimauftrag hattest!
+          </p>
+        )}
+        {!isGlitchTarget && isUndercover && (
+          <p className="text-xs text-[#6b6560] italic mt-[-20px] mb-8 max-w-sm text-center animate-fade-in">
+            Ein Mitglied unter euch hat heimlich eine andere Mission. Antworte ehrlich – und halte die Augen offen!
+          </p>
+        )}
+
+        {/* 1. TEXT / UNDERCOVER */}
+        {(wave.prompt_type === 'text' || wave.prompt_type === 'undercover' || !wave.prompt_type) && (
           <div className="w-full animate-fade-up" style={{ animationDelay: '300ms' }}>
             <textarea
               autoFocus
@@ -211,15 +233,15 @@ export default function WaveScreen({ wave, member, members, onSubmit }: Props) {
         <p className="text-red-400 text-xs text-center mt-3 animate-fade-in">{error}</p>
       )}
 
-      {/* Submit button (nötig für Text, Choice, Draw, Photo, Vibe) */}
-      {['text', 'choice', 'draw', 'photo', 'vibe'].includes(wave.prompt_type) && (
+      {/* Submit button (nötig für Text, Undercover, Choice, Draw, Photo, Vibe) */}
+      {['text', 'undercover', 'choice', 'draw', 'photo', 'vibe'].includes(wave.prompt_type) && (
         <div className="animate-fade-up mt-8" style={{ animationDelay: '450ms' }}>
           <button
             onClick={handleSubmitClick}
             disabled={
               loading ||
               ((wave.prompt_type === 'choice' || wave.prompt_type === 'vibe') && !selected) ||
-              (wave.prompt_type === 'text' && !answer.trim()) ||
+              ((wave.prompt_type === 'text' || wave.prompt_type === 'undercover') && !answer.trim()) ||
               ((wave.prompt_type === 'draw' || wave.prompt_type === 'photo') && !mediaContent)
             }
             className="w-full py-5 text-sm tracking-[0.25em] uppercase transition-opacity hover:opacity-70 disabled:opacity-20 border border-[#c8a065]/40 hover:border-[#c8a065]"

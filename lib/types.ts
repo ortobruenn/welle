@@ -9,11 +9,12 @@ export type WavePromptType =
   | 'choice' 
   | 'draw' 
   | 'photo' 
-  | 'spectrum'
+  | 'spectrum' 
   | 'pulse' 
-  | 'silence'
-  | 'enigma'
+  | 'silence' 
+  | 'enigma' 
   | 'vibe'
+  | 'undercover'
 
 export interface Wave {
   id: string

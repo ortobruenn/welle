@@ -25,11 +25,14 @@ export default function RevealScreen({
   const isSpectrum = wave.prompt_type === 'spectrum'
   const isEnigma = wave.prompt_type === 'enigma'
   const isVibe = wave.prompt_type === 'vibe'
-  const supportsBlindGuessing = !isPulse && !isSilence && !isSpectrum && !isEnigma && !isVibe && responses.length > 1
+  const isUndercover = wave.prompt_type === 'undercover' || !!extractGlitch(wave.options)
+  const supportsBlindGuessing = !isPulse && !isSilence && !isSpectrum && !isEnigma && !isVibe && !isUndercover && responses.length > 1
+  const supportsUndercoverVoting = isUndercover && responses.length > 1
 
   // Mystery Guessing state
-  const [isUnveiled, setIsUnveiled] = useState(!supportsBlindGuessing)
+  const [isUnveiled, setIsUnveiled] = useState(!supportsBlindGuessing && !supportsUndercoverVoting)
   const [guesses, setGuesses] = useState<Record<string, string>>({}) // responseId -> memberId
+  const [suspectedResponseId, setSuspectedResponseId] = useState<string | null>(null)
   const [lightboxImg, setLightboxImg] = useState<string | null>(null)
 
   // Oracle Echo state
@@ -85,7 +88,9 @@ export default function RevealScreen({
         <div className="flex items-center gap-2.5">
           <PushBell memberId={currentMember?.id} />
           <span className="text-xs tracking-[0.2em] uppercase" style={{ color: '#c8a065' }}>
-          {isEnigma
+          {isUndercover
+            ? 'Undercover-Anomalie'
+            : isEnigma
             ? 'Rätsel-Anomalie'
             : isSpectrum
             ? 'Spektrum'
@@ -124,6 +129,91 @@ export default function RevealScreen({
           <p className="text-xs text-[#a09990] leading-relaxed">
             Die Schöpfer sind verborgen. Tippe auf die Namen, um zu raten, wer was abgegeben hat – oder lüfte den Schleier direkt.
           </p>
+        </div>
+      )}
+
+      {/* Undercover Teaser Banner (when still veiled) */}
+      {isUndercover && !isUnveiled && (
+        <div className="mb-6 p-5 rounded-sm border border-[#c8a065]/50 bg-[#16120a] text-center animate-fade-in shadow-xl">
+          <div className="inline-flex items-center gap-2 mb-2">
+            <span className="text-base text-[#c8a065] animate-pulse">🕵️</span>
+            <span className="text-xs tracking-[0.25em] uppercase text-[#c8a065] font-semibold">
+              Undercover-Anomalie · Finde das Chamäleon
+            </span>
+          </div>
+          <p className="text-xs text-[#a09990] leading-relaxed mb-3">
+            Einer von euch hat heimlich eine verdrehte Gegen-Mission erhalten und versucht, seine Antwort unauffällig zu tarnen.
+          </p>
+          <div className="inline-block px-3 py-1.5 rounded bg-[#0a0a0a] border border-[#2a2318] text-[11px] text-[#e8e4de]">
+            {currentMember?.id === glitch?.memberId
+              ? '🎭 Du bist der Schatten-Agent! Hoffe, dass deine Tarnung standhält...'
+              : '👉 Tippe auf die Antwort, die du für die Tarnung hältst!'}
+          </div>
+        </div>
+      )}
+
+      {/* Undercover Resolution Hero Card (when unveiled) */}
+      {isUnveiled && isUndercover && glitch && (
+        <div className="mb-8 p-6 rounded-sm border border-[#c8a065]/60 bg-gradient-to-b from-[#18140c] to-[#0c0a06] shadow-2xl animate-fade-up">
+          <div className="flex items-center justify-between mb-4 border-b border-[#2a2214] pb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-base text-[#c8a065]">🕵️</span>
+              <span className="text-xs tracking-[0.25em] uppercase text-[#c8a065] font-semibold">
+                Undercover-Auflösung
+              </span>
+            </div>
+            <span className="text-[10px] tracking-wider uppercase px-2 py-0.5 rounded border border-[#c8a065]/40 text-[#c8a065] bg-[#c8a065]/10">
+              Enttarnt
+            </span>
+          </div>
+
+          <div className="text-center my-3">
+            <p className="text-xs tracking-[0.2em] uppercase text-[#888] mb-1">
+              Das geheime Chamäleon war:
+            </p>
+            <h3 className="font-display text-2xl text-[#e8e4de] font-medium">
+              {glitch.memberName || getMemberName(glitch.memberId)}
+            </h3>
+          </div>
+
+          {/* Voting outcome for the viewing user */}
+          {suspectedResponseId && (
+            <div className="my-4 p-3.5 rounded bg-[#0a0a0a] border border-[#261f14] text-center">
+              {(() => {
+                const undercoverResp = responses.find(r => r.member_id === glitch.memberId)
+                const hit = undercoverResp && suspectedResponseId === undercoverResp.id
+                if (currentMember?.id === glitch.memberId) {
+                  return (
+                    <p className="text-xs text-[#c8a065]">
+                      🎭 Du warst im Undercover-Einsatz! Schauen wir, ob deine Tarnung standgehalten hat.
+                    </p>
+                  )
+                }
+                if (hit) {
+                  return (
+                    <p className="text-xs text-emerald-400 font-medium">
+                      🎯 Volltreffer! Du hast die Tarnung durchschaut und richtig getippt!
+                    </p>
+                  )
+                }
+                return (
+                  <p className="text-xs text-amber-400/90 font-medium">
+                    🎭 Getäuscht! Du hast jemand anderen verdächtigt – die Tarnung hat dich erwischt!
+                  </p>
+                )
+              })()}
+            </div>
+          )}
+
+          {/* The secret mission prompt */}
+          <div className="mt-4 p-3.5 bg-[#0e0c08] border border-[#2d2417] rounded">
+            <span className="text-[10px] tracking-widest text-[#c8a065] uppercase block mb-1">
+              Heimlicher Spezial-Auftrag von {glitch.memberName || getMemberName(glitch.memberId)}:
+            </span>
+            <p className="font-display text-sm italic text-[#e8e4de] leading-relaxed">
+              „{glitch.prompt}“
+            </p>
+          </div>
         </div>
       )}
 
@@ -453,14 +543,23 @@ export default function RevealScreen({
             const currentGuess = guesses[response.id]
             const guessedAuthorName = currentGuess ? getMemberName(currentGuess) : null
             const wasGuessedCorrectly = currentGuess === response.member_id
+            const isUndercoverResponse = isUndercover && glitch && response.member_id === glitch.memberId
 
             return (
               <div
                 key={response.id}
                 className="p-6 border transition-all duration-500 rounded-sm relative overflow-hidden"
                 style={{
-                  borderColor: isUnveiled && wasGuessedCorrectly ? 'rgba(200,160,101,0.5)' : '#1e1e1e',
-                  background: isUnveiled && wasGuessedCorrectly ? 'rgba(200,160,101,0.03)' : '#0d0d0d',
+                  borderColor: isUnveiled && isUndercover && isUndercoverResponse
+                    ? 'rgba(200,160,101,0.7)'
+                    : isUnveiled && wasGuessedCorrectly
+                    ? 'rgba(200,160,101,0.5)'
+                    : '#1e1e1e',
+                  background: isUnveiled && isUndercover && isUndercoverResponse
+                    ? 'rgba(200,160,101,0.06)'
+                    : isUnveiled && wasGuessedCorrectly
+                    ? 'rgba(200,160,101,0.03)'
+                    : '#0d0d0d',
                 }}
               >
                 {/* Author Status Header */}
@@ -475,6 +574,21 @@ export default function RevealScreen({
                         <span className="text-[#c8a065]">?</span> Unbekannte Präsenz
                       </span>
                     )
+                  ) : isUndercover ? (
+                    <div className="flex items-center gap-2">
+                      {isUndercoverResponse ? (
+                        <span className="text-xs tracking-[0.2em] uppercase text-[#c8a065] font-bold flex items-center gap-1.5">
+                          <span>🕵️</span> DIE UNDERCOVER-TARNUNG
+                        </span>
+                      ) : (
+                        <span className="text-xs tracking-[0.2em] uppercase text-[#736d65] font-medium flex items-center gap-1.5">
+                          <span>✓</span> Echte Antwort
+                        </span>
+                      )}
+                      <span className="text-xs tracking-[0.2em] uppercase text-[#a09990]">
+                        · {trueAuthorName} {isMyResponse && '(Du)'}
+                      </span>
+                    </div>
                   ) : (
                     <div className="flex items-center gap-2">
                       <span className="text-xs tracking-[0.2em] uppercase text-[#c8a065] font-semibold">
@@ -489,7 +603,7 @@ export default function RevealScreen({
                   )}
 
                   {/* Guess Tag in Header */}
-                  {isUnveiled && !isMyResponse && currentGuess && (
+                  {isUnveiled && !isUndercover && !isMyResponse && currentGuess && (
                     <span
                       className={`text-[10px] tracking-wider uppercase px-2 py-0.5 rounded border ${
                         wasGuessedCorrectly
@@ -535,8 +649,29 @@ export default function RevealScreen({
                   </p>
                 )}
 
-                {/* Blind Guessing Selector (Only while veiled, only for other people's answers) */}
-                {!isUnveiled && !isMyResponse && otherMembers.length > 0 && (
+                {/* Undercover Blind Guessing: Verdächtigen als Tarnung */}
+                {!isUnveiled && isUndercover && !isMyResponse && (
+                  <div className="mt-4 pt-3 border-t border-[#1a1a1a]">
+                    <button
+                      onClick={() =>
+                        setSuspectedResponseId(prev => prev === response.id ? null : response.id)
+                      }
+                      className={`w-full py-2.5 px-3 rounded text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-2 border ${
+                        suspectedResponseId === response.id
+                          ? 'bg-[#c8a065] text-[#0a0a0a] font-semibold border-[#c8a065] shadow-[0_0_15px_rgba(200,160,101,0.3)]'
+                          : 'bg-[#121212] text-[#a09990] border-[#222] hover:border-[#c8a065]/50 hover:text-[#e8e4de]'
+                      }`}
+                    >
+                      <span>🕵️</span>
+                      {suspectedResponseId === response.id
+                        ? 'Als Tarnung verdächtigt ✓'
+                        : 'Als getarnte Mission verdächtigen'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Blind Guessing Selector (Only while veiled, only for normal waves) */}
+                {!isUnveiled && !isUndercover && !isMyResponse && otherMembers.length > 0 && (
                   <div className="mt-4 pt-3 border-t border-[#1a1a1a]">
                     <span className="block text-[10px] tracking-[0.2em] uppercase text-[#6b6560] mb-2">
                       Wer hat das geschaffen?
@@ -571,12 +706,12 @@ export default function RevealScreen({
           })}
 
           {/* Button to Unveil the Veil */}
-          {supportsBlindGuessing && !isUnveiled && (
+          {(supportsBlindGuessing || supportsUndercoverVoting) && !isUnveiled && (
             <button
               onClick={() => setIsUnveiled(true)}
-              className="mt-4 py-4 w-full text-center text-sm tracking-[0.25em] uppercase border border-[#c8a065] text-[#c8a065] hover:bg-[#c8a065]/10 transition-all shadow-[0_0_20px_rgba(200,160,101,0.15)] font-medium"
+              className="mt-4 py-4 w-full text-center text-sm tracking-[0.25em] uppercase border border-[#c8a065] text-[#0a0a0a] bg-[#c8a065] hover:bg-[#d8b075] transition-all shadow-[0_0_20px_rgba(200,160,101,0.2)] font-semibold rounded-sm"
             >
-              Schleier lüften & Auflösen →
+              {isUndercover ? 'Schleier lüften & Chamäleon auflösen →' : 'Schleier lüften & Auflösen →'}
             </button>
           )}
         </div>
@@ -626,8 +761,8 @@ export default function RevealScreen({
         </div>
       )}
 
-      {/* Whisper / Glitch Anomaly Reveal */}
-      {isUnveiled && glitch && (
+      {/* Whisper / Glitch Anomaly Reveal (Legacy fallback for non-undercover waves) */}
+      {isUnveiled && !isUndercover && glitch && (
         <div className="my-4 p-5 border border-[#c8a065]/50 bg-[#16130d] rounded-sm animate-fade-up shadow-xl">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-sm text-[#c8a065]">⚡</span>

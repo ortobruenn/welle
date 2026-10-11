@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import {
   attachGlitchToOptions,
+  attachUndercoverToOptions,
   buildEnigmaOptions,
   buildVibeOptions,
   extractPreparedWave,
@@ -14,31 +15,31 @@ const geminiApiKey = process.env.GEMINI_API_KEY!
 
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-// Bunter, vielseitiger Pool aus allen Erlebnis-Formaten inklusive Glitch-Varianten
+// Bunter, vielseitiger Pool aus allen Erlebnis-Formaten inklusive Undercover-Anomalien
 // Tenor: abwechslungsreich – mal frech & locker, mal pfiffig & witzig, mal poetisch & atmosphärisch
 export const CURATED_PROMPTS = [
   // ZEICHNEN 🎨
   {
     prompt: 'Zeichne mit einem Strich ein Symbol, das deinen heutigen Tag einfängt.',
-    glitch_prompt: 'Zeichne ein Symbol für das genaue Gegenteil deines heutigen Tages.',
+    glitch_prompt: null,
     prompt_type: 'draw',
     options: null
   },
   {
     prompt: 'Zeichne blind ein Tier mit drei Beinen.',
-    glitch_prompt: 'Zeichne blind ein Fantasiewesen, das fliegen kann, aber keine Flügel hat.',
+    glitch_prompt: null,
     prompt_type: 'draw',
     options: null
   },
   {
     prompt: 'Kritzle in maximal 10 Sekunden das chaotischste Ding in deinem aktuellen Blickfeld.',
-    glitch_prompt: 'Zeichne die reinste geometrische Ordnung, die dir einfällt.',
+    glitch_prompt: null,
     prompt_type: 'draw',
     options: null
   },
   {
     prompt: 'Skizziere kurz deine aktuelle Laune als abstraktes Emoji.',
-    glitch_prompt: 'Skizziere die Laune der Person, die dir heute am meisten auf die Nerven ging.',
+    glitch_prompt: null,
     prompt_type: 'draw',
     options: null
   },
@@ -46,25 +47,25 @@ export const CURATED_PROMPTS = [
   // FOTO & TEXTUR 📷
   {
     prompt: 'Ein schneller Schnappschuss aus dem nächsten Fenster – zeig uns den Himmel über dir.',
-    glitch_prompt: 'Richte die Kamera direkt auf den Boden oder deine Füße.',
+    glitch_prompt: null,
     prompt_type: 'photo',
     options: null
   },
   {
     prompt: 'Fotografiere das unordentlichste oder absurdeste Detail in deiner Reichweite.',
-    glitch_prompt: 'Fotografiere das ordentlichste, sterilste Ding, das du gerade sehen kannst.',
+    glitch_prompt: null,
     prompt_type: 'photo',
     options: null
   },
   {
     prompt: 'Zeig uns deinen aktuellen Alltags-Retter: Kaffee, Snack oder Gegenstand des Tages.',
-    glitch_prompt: 'Fotografiere etwas, das du heute am liebsten in den Müll werfen würdest.',
+    glitch_prompt: null,
     prompt_type: 'photo',
     options: null
   },
   {
     prompt: 'Finde etwas in deiner unmittelbaren Umgebung, das knallig bunt oder rostig ist.',
-    glitch_prompt: 'Finde etwas in deiner Umgebung, das tiefblau, metallisch oder eiskalt wirkt.',
+    glitch_prompt: null,
     prompt_type: 'photo',
     options: null
   },
@@ -98,7 +99,7 @@ export const CURATED_PROMPTS = [
   // PULS & SYNCHRONITÄT ⏱️
   {
     prompt: 'Kurzer Reset: Schließe die Augen und halte den Kreis für genau 7 Sekunden gedrückt.',
-    glitch_prompt: 'Halte den Kreis für genau 3 Sekunden gedrückt – lass viel früher los als gedacht.',
+    glitch_prompt: null,
     prompt_type: 'pulse',
     options: null
   },
@@ -170,7 +171,7 @@ export const CURATED_PROMPTS = [
   },
   {
     prompt: 'Ehrliche Alltagsbeichte für heute:',
-    glitch_prompt: 'Wähle das Gegenteil deiner wahren Antwort:',
+    glitch_prompt: null,
     prompt_type: 'choice',
     options: [
       'Heute schon mindestens einmal hemmungslos prokrastiniert',
@@ -179,7 +180,7 @@ export const CURATED_PROMPTS = [
   },
   {
     prompt: 'Wenn du heute eine Erinnerung an diesen Tag konservieren müsstest:',
-    glitch_prompt: 'Wenn du heute eine peinliche Kleinigkeit sofort auslöschen könntest:',
+    glitch_prompt: null,
     prompt_type: 'choice',
     options: [
       'Ein Geräusch oder ein Lied, das lief',
@@ -190,26 +191,64 @@ export const CURATED_PROMPTS = [
   // FREITEXT & ALLTAGSIMPULSE ✍️
   {
     prompt: 'Wenn dein heutiger Tag ein Buchtitel oder Netflix-Film wäre – wie würde er heißen?',
-    glitch_prompt: 'Gib deinem Tag den langweiligsten Beamtendeutsch-Titel aller Zeiten.',
+    glitch_prompt: null,
     prompt_type: 'text',
     options: null
   },
   {
     prompt: 'Was ist das Absurdeste, Lustigste oder Banalste, das dir heute passiert ist?',
-    glitch_prompt: 'Erfinde eine winzige, scheinbar glaubhafte Lüge über deinen Tag.',
+    glitch_prompt: null,
     prompt_type: 'text',
     options: null
   },
   {
     prompt: 'Welcher Gedanke ging dir heute durch den Kopf, ohne dass du ihn eingeladen hast?',
-    glitch_prompt: 'Was ist der bescheuertste Ohrwurm oder Gedankenfetzen, den du heute hattest?',
+    glitch_prompt: null,
     prompt_type: 'text',
     options: null
   },
   {
     prompt: 'Beschreibe mit genau 3 Worten deine aktuelle Verfassung.',
-    glitch_prompt: 'Beschreibe mit genau 3 Worten das Gegenteil deiner aktuellen Verfassung.',
+    glitch_prompt: null,
     prompt_type: 'text',
+    options: null
+  },
+
+  // UNDERCOVER-ANOMALIE 🕵️ (Social-Deduction & Chamäleon-Tarnung)
+  {
+    prompt: 'Was ist dein persönlicher Guilty-Pleasure-Snack, den du heimlich verschlingst?',
+    glitch_prompt: 'Nenne eine gesunde Zutat oder bittere Medizin, die du verabscheust – tarne deine Antwort aber so geschickt, dass die Gruppe denkt, es sei dein wahrer Lieblingssnack!',
+    prompt_type: 'undercover',
+    options: null
+  },
+  {
+    prompt: 'Beschreibe deinen idealen Sonntagmorgen in genau einem Satz.',
+    glitch_prompt: 'Beschreibe einen völlig chaotischen oder stressigen Morgen – formuliere es aber so raffiniert, dass es wie ein entspannter Sonntagmorgen wirkt!',
+    prompt_type: 'undercover',
+    options: null
+  },
+  {
+    prompt: 'Was ist dein absoluter Wohlfühl- oder Traumort auf dieser Welt?',
+    glitch_prompt: 'Beschreibe das schäbigste Wartezimmer oder eine Amtsstube – aber tarne es so geschickt, dass alle denken, es sei dein Traum-Ort!',
+    prompt_type: 'undercover',
+    options: null
+  },
+  {
+    prompt: 'Wenn du dir heute eine magische Superkraft aussuchen dürftest – welche wäre es?',
+    glitch_prompt: 'Nenne eine peinliche Schwäche oder Tollpatschigkeit – verkaufe sie in deiner Antwort aber wie eine geniale Superkraft!',
+    prompt_type: 'undercover',
+    options: null
+  },
+  {
+    prompt: 'Was bringt dich im Alltag verlässlich zum Grinsen oder laut Lachen?',
+    glitch_prompt: 'Beschreibe etwas, das dich im Alltag maßlos nervt oder aufregt – verpacke es aber so humorvoll und positiv, dass es wie ein Wohlfühlmoment klingt!',
+    prompt_type: 'undercover',
+    options: null
+  },
+  {
+    prompt: 'Welche eine Sache oder Gewohnheit rettet dir an anstrengenden Tagen das Leben?',
+    glitch_prompt: 'Nenne eine schlechte Angewohnheit, die eigentlich alles nur schlimmer macht – tarne sie in deinem Satz aber als genialen Life-Hack!',
+    prompt_type: 'undercover',
     options: null
   },
 
@@ -273,6 +312,8 @@ export async function generateWaveContent(
     .filter(Boolean) as string[]
   const forbiddenTypes = Array.from(new Set(recentTypes.slice(0, 2)))
 
+  const memberList = members || []
+
   const ALL_FORMATS = [
     { type: 'spectrum', desc: 'Zwei gegensätzliche Pole in "options" (z.B. ["120% Tatendrang", "2% Akku auf der Couch"] oder ["Kühler Kopf", "Bauchgefühl"])' },
     { type: 'photo', desc: 'Schnappschuss aus dem Hier und Jetzt (z.B. das unordentlichste Eck, heutiger Kaffeestand, Wetter-Blick, Textur)' },
@@ -282,13 +323,14 @@ export async function generateWaveContent(
     { type: 'silence', desc: '30 Sekunden Bildschirmpause zum kurzen Durchatmen' },
     { type: 'enigma', desc: 'Kooperatives Worträtsel ("options": ["__solution__:WORT", "__hint__:Tipp", "Zeile 1", "Zeile 2", "Zeile 3", "Zeile 4"]) – niemals Zahlen wie "vier Bruchstücke" im Text erwähnen!' },
     { type: 'text', desc: 'Spontane Frage als Freitext (mal frech, mal neugierig, mal reflektiert)' },
-    { type: 'vibe', desc: 'Humorvolles Bild-Dilemma / Vibe-Check ("Bist du heute eher X oder Y?") mit 2 lustigen Cartoon-Charakteren' }
+    { type: 'vibe', desc: 'Humorvolles Bild-Dilemma / Vibe-Check ("Bist du heute eher X oder Y?") mit 2 lustigen Cartoon-Charakteren' },
+    ...(memberList.length >= 2 ? [{
+      type: 'undercover',
+      desc: 'Undercover-Anomalie (Social-Deduction): Die Gruppe erhält eine normale Hauptfrage. Genau EIN heimlicher Schatten-Agent erhält in "glitch_prompt" eine verdrehte Gegen-Mission, die er unauffällig als Antwort tarnen muss. Beim Schleier lüften entlarvt die Gruppe den Agenten!'
+    }] : [])
   ]
 
   const allowedFormats = ALL_FORMATS.filter(f => !forbiddenTypes.includes(f.type))
-
-  const memberList = members || []
-  const isAnomaly = memberList.length >= 2 && (nextNumber % 3 === 0 || Math.random() < 0.25)
 
   // Dynamischer Stimmungs-Wechsel (Mood Variety)
   const MOODS = [
@@ -335,7 +377,10 @@ Wähle zwingend eines der folgenden ERLAUBTEN Formate:
 ${allowedFormats.map(f => `- "${f.type}": ${f.desc}`).join('\n')}
 
 Format-Regeln:
-${isAnomaly ? `- ANOMALIE AKTIV ("Der Flüsterer"): Erzeuge "glitch_prompt" (eine verdrehte, geheime oder witzige Gegen-Variante für genau einen Spieler!).` : '- Keine Anomalie: "glitch_prompt" ist null.'}
+- Wenn "prompt_type" === "undercover":
+  Erzeuge in "prompt" eine anregende Hauptfrage für die Gruppe (Freitext) und in "glitch_prompt" eine verdrehte, geheime Gegen- oder Tarnmission für genau 1 Schatten-Agenten. Der Agent hat den Auftrag, seine Antwort so raffiniert zu tarnen, dass die Gruppe beim Schleier-Lüften nicht merkt, dass er eine andere Aufgabe hatte! "options" ist zwingend null.
+- Für ALLE ANDEREN Formate ("choice", "vibe", "spectrum", "text", "draw", "photo", "pulse", "silence", "enigma"):
+  "glitch_prompt" ist STRIKT null! Niemals Glitches in Choice-, Bild- oder Spektrum-Formate mischen!
 
 Kontext bisheriger Wellen:
 ${contextText}
@@ -345,7 +390,7 @@ Antworte STRIKT im JSON-Format:
   "prompt": "Die Hauptfrage / Anweisung an alle",
   "prompt_type": "${allowedFormats.map(f => f.type).join('" | "')}",
   "options": ["Option 1", "Option 2"] | null,
-  "glitch_prompt": "Verdrehte Variante für den Flüsterer" | null
+  "glitch_prompt": "Verdrehte Tarn-Mission für den Undercover-Agenten" | null
 }`
 
   let parsed: any = null
@@ -414,10 +459,10 @@ Antworte STRIKT im JSON-Format:
 
   let finalOptions: string[] | null = Array.isArray(parsed.options) ? parsed.options : null
 
-  if (isAnomaly && memberList.length >= 2) {
-    const glitchPrompt = parsed.glitch_prompt || 'Zeige oder beschreibe das genaue Gegenteil deines ersten Impulses.'
+  if (parsed.prompt_type === 'undercover' && memberList.length >= 2) {
+    const undercoverPrompt = parsed.glitch_prompt || 'Beschreibe das Gegenteil deiner wahren Gedanken – aber tarne deinen Satz so geschickt, dass die anderen denken, du meinst die Hauptfrage!'
     const luckyMember = memberList[Math.floor(Math.random() * memberList.length)]
-    finalOptions = attachGlitchToOptions(finalOptions, luckyMember.id, luckyMember.name, glitchPrompt)
+    finalOptions = attachUndercoverToOptions(null, luckyMember.id, luckyMember.name, undercoverPrompt)
   }
 
   return {

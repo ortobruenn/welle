@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Wave, Member, WaveResponse } from '@/lib/types'
-import { extractEcho, extractGlitch, attachGlitchToOptions, extractEnigma, buildEnigmaOptions, buildVibeOptions } from '@/lib/mystery'
+import { extractEcho, extractGlitch, attachGlitchToOptions, attachUndercoverToOptions, extractEnigma, buildEnigmaOptions, buildVibeOptions } from '@/lib/mystery'
 
 const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE || 'admin'
 
@@ -129,22 +129,22 @@ export default function AdminPage() {
     setLoading(false)
   }
 
-  const handleQuickGlitchCreate = async () => {
+  const handleQuickUndercoverCreate = async () => {
     if (members.length === 0) return
     setLoading(true)
     const nextNumber = waves.length > 0 ? Math.max(...waves.map(w => w.number)) + 1 : 1
     const target = members[Math.floor(Math.random() * members.length)]
-    const glitchOptions = attachGlitchToOptions(
+    const undercoverOptions = attachUndercoverToOptions(
       null,
       target.id,
       target.name,
-      'Zeichne ein Symbol für das genaue Gegenteil deines heutigen Tages.'
+      'Beschreibe das schäbigste Wartezimmer oder eine Amtsstube – aber tarne es geschickt, sodass alle denken, es sei dein Traum-Ort!'
     )
     await supabase.from('waves').insert({
       number: nextNumber,
-      prompt: 'Zeichne mit einem Strich ein Symbol, das deinen heutigen Tag einfängt.',
-      prompt_type: 'draw',
-      options: glitchOptions,
+      prompt: 'Was ist dein absoluter Wohlfühl- oder Traumort auf dieser Welt?',
+      prompt_type: 'undercover',
+      options: undercoverOptions,
       status: 'active',
     })
     await fetchData()
@@ -433,12 +433,12 @@ export default function AdminPage() {
             <span className="text-[#6b6560] block text-[11px]">20s Atem-Timer</span>
           </button>
           <button
-            onClick={handleQuickGlitchCreate}
+            onClick={handleQuickUndercoverCreate}
             disabled={loading || members.length === 0}
             className="p-3 text-left border border-[#c8a065]/40 hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d] disabled:opacity-40"
           >
-            <span className="block font-medium text-[#c8a065] mb-1">⚡ Glitch-Welle (Flüsterer)</span>
-            <span className="text-[#6b6560] block text-[11px]">1 Mitglied erhält heimlich gespiegelte Aufgabe</span>
+            <span className="block font-medium text-[#c8a065] mb-1">🕵️ Undercover-Anomalie (Chamäleon)</span>
+            <span className="text-[#6b6560] block text-[11px]">1 Mitglied tarnt Gegen-Mission, Gruppe entlarvt es beim Schleier</span>
           </button>
           <button
             onClick={handleQuickEnigmaCreate}
@@ -446,7 +446,7 @@ export default function AdminPage() {
             className="p-3 text-left border border-[#c8a065]/40 hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d] disabled:opacity-40"
           >
             <span className="block font-medium text-[#c8a065] mb-1">🧩 Enigma-Welle (Fragment-Rätsel)</span>
-            <span className="text-[#6b6560] block text-[11px]">4 Bruchstücke, die nur kooperativ lösbar sind</span>
+            <span className="text-[#6b6560] block text-[11px]">Bruchstücke, die nur kooperativ lösbar sind</span>
           </button>
           <button
             onClick={handleQuickVibeCreate}
@@ -468,6 +468,7 @@ export default function AdminPage() {
           <div className="flex gap-2 flex-wrap">
             {([
               { id: 'text', label: 'Text' },
+              { id: 'undercover', label: 'Undercover 🕵️' },
               { id: 'choice', label: 'Auswahl' },
               { id: 'vibe', label: 'Vibe 🎭' },
               { id: 'spectrum', label: 'Spektrum ⚖️' },
