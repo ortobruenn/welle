@@ -1,4 +1,71 @@
-<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512' viewBox='0 0 512 512'>
-  <rect width='512' height='512' fill='%230a0a0a'/>
-  <text x='256' y='320' text-anchor='middle' font-family='Georgia,serif' font-size='300' fill='%23c8a065'>&#8767;</text>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background subtle obsidian gradient -->
+    <radialGradient id="bgGradient" cx="50%" cy="45%" r="65%">
+      <stop offset="0%" stop-color="#181510" />
+      <stop offset="60%" stop-color="#0c0b0a" />
+      <stop offset="100%" stop-color="#060606" />
+    </radialGradient>
+
+    <!-- Ambient gold glow -->
+    <radialGradient id="coreGlow" cx="50%" cy="50%" r="40%">
+      <stop offset="0%" stop-color="#c8a065" stop-opacity="0.18" />
+      <stop offset="60%" stop-color="#c8a065" stop-opacity="0.04" />
+      <stop offset="100%" stop-color="#c8a065" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Wave stroke gradient -->
+    <linearGradient id="waveGold" x1="0%" y1="30%" x2="100%" y2="70%">
+      <stop offset="0%" stop-color="#e2c286" />
+      <stop offset="45%" stop-color="#c8a065" />
+      <stop offset="100%" stop-color="#ab854c" />
+    </linearGradient>
+
+    <!-- Subtle wave outer glow filter -->
+    <filter id="waveAura" x="-20%" y="-30%" width="140%" height="160%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Base background (solid dark) -->
+  <rect width="512" height="512" fill="url(#bgGradient)" />
+
+  <!-- Core ambient aura -->
+  <circle cx="256" cy="256" r="170" fill="url(#coreGlow)" />
+
+  <!-- Subtle sacred frequency ring (echoing 432 Hz tuner) -->
+  <circle cx="256" cy="256" r="190" fill="none" stroke="#c8a065" stroke-width="1.5" stroke-opacity="0.14" stroke-dasharray="3 6" />
+  <circle cx="256" cy="256" r="168" fill="none" stroke="#c8a065" stroke-width="1" stroke-opacity="0.08" />
+
+  <!-- Subtle cardinal micro-markers -->
+  <circle cx="256" cy="66" r="2.5" fill="#c8a065" opacity="0.4" />
+  <circle cx="256" cy="446" r="2.5" fill="#c8a065" opacity="0.4" />
+  <circle cx="66" cy="256" r="2.5" fill="#c8a065" opacity="0.4" />
+  <circle cx="446" cy="256" r="2.5" fill="#c8a065" opacity="0.4" />
+
+  <!-- The Canonical Welle Wave (Cubic Bezier curve from JoinScreen seal) -->
+  <path
+    d="M 126 256 C 162 144, 220 144, 256 256 C 292 368, 350 368, 386 256"
+    fill="none"
+    stroke="#c8a065"
+    stroke-width="36"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.18"
+    filter="url(#waveAura)"
+  />
+
+  <path
+    d="M 126 256 C 162 144, 220 144, 256 256 C 292 368, 350 368, 386 256"
+    fill="none"
+    stroke="url(#waveGold)"
+    stroke-width="22"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
 </svg>
