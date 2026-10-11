@@ -298,39 +298,69 @@ export async function generateWaveContent(
   members: any[],
   nextNumber: number
 ): Promise<{ prompt: string; prompt_type: string; options: string[] | null }> {
+  // Kontext der letzten 6 Wellen für Gemini (Token-schonend)
   let contextText = ''
-  if (previousWaves && previousWaves.length > 0) {
-    contextText = 'Bisherige Wellen der Gruppe:\n' + previousWaves.map(w => {
+  const contextWaves = (previousWaves || []).slice(0, 6)
+  if (contextWaves.length > 0) {
+    contextText = 'Bisherige Wellen der Gruppe:\n' + contextWaves.map(w => {
       const respList = (w.responses || []).map((r: any) => `"${r.content}"`).join(', ')
       return `Welle ${w.number} [Format: ${w.prompt_type || 'text'}]: "${w.prompt}" | Antworten: [${respList}]`
     }).join('\n')
   }
 
-  // Letzte 2-3 Formate ermitteln – DIESE DÜRFEN SICH KEINESFALLS WIEDERHOLEN!
-  const recentTypes = (previousWaves || [])
-    .map(w => w.prompt_type)
-    .filter(Boolean) as string[]
-  const forbiddenTypes = Array.from(new Set(recentTypes.slice(0, 2)))
-
   const memberList = members || []
 
   const ALL_FORMATS = [
+    { type: 'text', desc: 'Spontane Frage als Freitext (mal frech, mal neugierig, mal reflektiert)' },
+    { type: 'choice', desc: 'Knackiges, überraschendes A/B-Dilemma mit 2 prägnanten Optionen' },
+    { type: 'vibe', desc: 'Humorvolles Bild-Dilemma / Vibe-Check ("Bist du heute eher X oder Y?") mit 2 lustigen Cartoon-Charakteren' },
     { type: 'spectrum', desc: 'Zwei gegensätzliche Pole in "options" (z.B. ["120% Tatendrang", "2% Akku auf der Couch"] oder ["Kühler Kopf", "Bauchgefühl"])' },
     { type: 'photo', desc: 'Schnappschuss aus dem Hier und Jetzt (z.B. das unordentlichste Eck, heutiger Kaffeestand, Wetter-Blick, Textur)' },
     { type: 'draw', desc: 'Schnelle Finger-Zeichnung auf Canvas (z.B. ein abstraktes Symbol, blind ein Tier, aktuelle Laune)' },
-    { type: 'choice', desc: 'Knackiges, überraschendes A/B-Dilemma mit 2 prägnanten Optionen' },
     { type: 'pulse', desc: 'Kurzer Synchro-Moment: Kreis für 7 Sekunden rein nach Gefühl gedrückt halten' },
     { type: 'silence', desc: '30 Sekunden Bildschirmpause zum kurzen Durchatmen' },
     { type: 'enigma', desc: 'Kooperatives Worträtsel ("options": ["__solution__:WORT", "__hint__:Tipp", "Zeile 1", "Zeile 2", "Zeile 3", "Zeile 4"]) – niemals Zahlen wie "vier Bruchstücke" im Text erwähnen!' },
-    { type: 'text', desc: 'Spontane Frage als Freitext (mal frech, mal neugierig, mal reflektiert)' },
-    { type: 'vibe', desc: 'Humorvolles Bild-Dilemma / Vibe-Check ("Bist du heute eher X oder Y?") mit 2 lustigen Cartoon-Charakteren' },
     ...(memberList.length >= 2 ? [{
       type: 'undercover',
       desc: 'Undercover-Anomalie (Social-Deduction): Die Gruppe erhält eine normale Hauptfrage. Genau EIN heimlicher Schatten-Agent erhält in "glitch_prompt" eine verdrehte Gegen-Mission, die er unauffällig als Antwort tarnen muss. Beim Schleier lüften entlarvt die Gruppe den Agenten!'
     }] : [])
   ]
 
-  const allowedFormats = ALL_FORMATS.filter(f => !forbiddenTypes.includes(f.type))
+  const allTypes = ALL_FORMATS.map(f => f.type)
+
+  // STRIKTE ZYKLUS-REGEL: Ein Format darf erst wieder drankommen, wenn JEDER andere Typ einmal dran war!
+  // Wir ermitteln rückwärtsgehend aus den bisherigen Wellen, welche Typen im aktuellen Zyklus verbraucht sind.
+  const usedInCurrentCycle = new Set<string>()
+
+  for (const wave of previousWaves || []) {
+    const t = wave.prompt_type
+    if (!t || !allTypes.includes(t)) continue
+
+    // Sobald sich ein Typ wiederholt, endete dort der vorherige Zyklus
+    if (usedInCurrentCycle.has(t)) {
+      break
+    }
+    usedInCurrentCycle.add(t)
+
+    // Wenn alle Typen erreicht wurden, war der Zyklus komplett
+    if (usedInCurrentCycle.size === allTypes.length) {
+      break
+    }
+  }
+
+  // Noch offene Formate im aktuellen Zyklus:
+  let allowedFormats = ALL_FORMATS.filter(f => !usedInCurrentCycle.has(f.type))
+
+  // Falls alle Typen verbraucht waren (Zyklus vollendet): Neuer Zyklus beginnt!
+  // Einzige Einschränkung: Nicht direkt denselben Typ wie die unmittelbar letzte Welle wählen
+  if (allowedFormats.length === 0) {
+    const lastPlayed = previousWaves?.[0]?.prompt_type
+    allowedFormats = ALL_FORMATS.filter(f => f.type !== lastPlayed)
+    if (allowedFormats.length === 0) allowedFormats = ALL_FORMATS
+  }
+
+  const allowedTypes = allowedFormats.map(f => f.type)
+  const forbiddenTypes = allTypes.filter(t => !allowedTypes.includes(t))
 
   // Dynamischer Stimmungs-Wechsel (Mood Variety)
   const MOODS = [
@@ -369,11 +399,9 @@ STRENGE REGELN:
    - Vermeide übertrieben schwere, düstere oder pseudo-mystische Floskeln.
    - Sei frisch, pointiert, lebendig und charmant. Mal locker und frech, mal clever, mal poetisch.
    - Prompts müssen direkt zünden und leicht verständlich sein. Keine Schachtelsätze.
-3. FORMAT-ABWECHSLUNG:
-   Die letzten Wellen hatten folgende Formate: ${forbiddenTypes.length > 0 ? forbiddenTypes.join(', ') : 'keine'}.
-   DIESE FORMATE SIND FÜR DIE NÄCHSTE WELLE STRENG VERBOTEN!
-
-Wähle zwingend eines der folgenden ERLAUBTEN Formate:
+3. FORMAT-ROTATION (VOLLER ZYKLUS):
+   Im aktuellen Zyklus wurden bereits folgende Formate verwendet und sind STRENGSTENS VERBOTEN: ${forbiddenTypes.length > 0 ? forbiddenTypes.join(', ') : 'keine'}.
+   Du MUSST zwingend eines der folgenden noch OFFENEN Formate wählen:
 ${allowedFormats.map(f => `- "${f.type}": ${f.desc}`).join('\n')}
 
 Format-Regeln:
@@ -421,15 +449,15 @@ Antworte STRIKT im JSON-Format:
     }
   }
 
-  // Intelligenter Pool-Fallback MIT STRIKTER ABWECHSLUNGS-GARANTIE:
-  // Falls Gemini fehlt, fehlschlägt ODER trotz Verbot wieder ein vor kurzem genutztes Format gewählt hat:
-  if (!parsed || !parsed.prompt || forbiddenTypes.includes(parsed.prompt_type)) {
-    if (parsed?.prompt_type && forbiddenTypes.includes(parsed.prompt_type)) {
-      console.warn(`[Wave] Gemini ignorierte Diversität und wählte verbotenes Format "${parsed.prompt_type}". Ersetze durch erlaubtes Pool-Format!`)
+  // Intelligenter Pool-Fallback MIT STRIKTER ZYKLUS-GARANTIE:
+  // Falls Gemini fehlt, fehlschlägt ODER ein nicht erlaubtes Format gewählt hat:
+  if (!parsed || !parsed.prompt || !allowedTypes.includes(parsed.prompt_type)) {
+    if (parsed?.prompt_type && !allowedTypes.includes(parsed.prompt_type)) {
+      console.warn(`[Wave] Gemini ignorierte Zyklus-Rotation ("${parsed.prompt_type}" nicht in ${allowedTypes.join(', ')}). Ersetze durch erlaubtes Pool-Format!`)
     }
     const pastPrompts = (previousWaves || []).map(w => w.prompt)
-    // Nur Formate erlauben, die nicht in den letzten 2 Wellen waren
-    const availableAllowed = CURATED_PROMPTS.filter(p => !forbiddenTypes.includes(p.prompt_type))
+    // Nur Formate aus dem noch offenen Zyklus erlauben
+    const availableAllowed = CURATED_PROMPTS.filter(p => allowedTypes.includes(p.prompt_type))
     const freshAllowed = availableAllowed.filter(p => !pastPrompts.includes(p.prompt))
     const pool = freshAllowed.length > 0 ? freshAllowed : (availableAllowed.length > 0 ? availableAllowed : CURATED_PROMPTS)
     parsed = pool[Math.floor(Math.random() * pool.length)]
@@ -490,7 +518,7 @@ export async function prepareWaveContent(waveId?: string): Promise<{ success: bo
   }
 
   const [{ data: previousWaves }, { data: members }] = await Promise.all([
-    supabase.from('waves').select('number, prompt, prompt_type, responses(content)').order('number', { ascending: false }).limit(6),
+    supabase.from('waves').select('number, prompt, prompt_type, responses(content)').order('number', { ascending: false }).limit(30),
     supabase.from('members').select('id, name')
   ])
 
@@ -549,7 +577,7 @@ export async function activateWaveInternal(force = false): Promise<{ success: bo
 
     // Vorherige Wellen und Mitglieder holen
     const [{ data: previousWaves }, { data: members }] = await Promise.all([
-      supabase.from('waves').select('number, prompt, prompt_type, responses(content)').order('number', { ascending: false }).limit(6),
+      supabase.from('waves').select('number, prompt, prompt_type, responses(content)').order('number', { ascending: false }).limit(30),
       supabase.from('members').select('id, name')
     ])
 
