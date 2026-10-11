@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { extractEcho, attachEchoToOptions } from '@/lib/mystery'
+import { sendPushToMembers } from '@/lib/pushServer'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -109,10 +110,26 @@ Regeln:
 
     // 4. In Supabase speichern
     const updatedOptions = attachEchoToOptions(wave.options, synthesizedEcho)
-    await supabase
+    const { error: updateError } = await supabase
       .from('waves')
       .update({ options: updatedOptions })
       .eq('id', waveId)
+
+    if (updateError) throw updateError
+
+    // Web Push: Alle haben geantwortet -> Enthüllung an alle Teilnehmer melden
+    try {
+      await sendPushToMembers({
+        payload: {
+          title: 'Welle enthüllt ∿',
+          body: 'Alle Teilnehmer haben geantwortet! Sieh dir an, was entstanden ist.',
+          url: '/',
+          tag: `reveal-${waveId}`,
+        },
+      })
+    } catch (pushErr) {
+      console.warn('[Push] Failed to dispatch reveal push:', pushErr)
+    }
 
     return NextResponse.json({ success: true, echo: synthesizedEcho })
   } catch (error: any) {
