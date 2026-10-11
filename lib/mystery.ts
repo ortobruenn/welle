@@ -56,6 +56,35 @@ export function buildEnigmaOptions(solution: string, fragments: string[], hint?:
   return result
 }
 
+export interface VibeItem {
+  id: string
+  title: string
+  prompt: string
+  imageUrl: string
+}
+
+export function extractVibeOptions(options: string[] | null): VibeItem[] | null {
+  if (!options || !Array.isArray(options)) return null
+  const vibeStrings = options.filter(o => typeof o === 'string' && o.startsWith('__vibe__:'))
+  if (vibeStrings.length === 0) return null
+  const items: VibeItem[] = []
+  for (const s of vibeStrings) {
+    try {
+      const parsed = JSON.parse(s.slice('__vibe__:'.length))
+      if (parsed && parsed.title && parsed.imageUrl) {
+        items.push(parsed)
+      }
+    } catch {
+      // ignore parse error
+    }
+  }
+  return items.length > 0 ? items : null
+}
+
+export function buildVibeOptions(items: VibeItem[]): string[] {
+  return items.map(item => `__vibe__:${JSON.stringify(item)}`)
+}
+
 export function cleanOptions(options: string[] | null): string[] | null {
   if (!options || !Array.isArray(options)) return null
   const cleaned = options.filter(
@@ -63,7 +92,8 @@ export function cleanOptions(options: string[] | null): string[] | null {
       !o.startsWith('__echo__:') &&
       !o.startsWith('__glitch__:') &&
       !o.startsWith('__solution__:') &&
-      !o.startsWith('__hint__:')
+      !o.startsWith('__hint__:') &&
+      !o.startsWith('__vibe__:')
   )
   return cleaned.length > 0 ? cleaned : null
 }

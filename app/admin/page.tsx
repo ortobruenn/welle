@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Wave, Member, WaveResponse } from '@/lib/types'
-import { extractEcho, extractGlitch, attachGlitchToOptions, extractEnigma, buildEnigmaOptions } from '@/lib/mystery'
+import { extractEcho, extractGlitch, attachGlitchToOptions, extractEnigma, buildEnigmaOptions, buildVibeOptions } from '@/lib/mystery'
 
 const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE || 'admin'
 
@@ -82,6 +82,22 @@ export default function AdminPage() {
     const nextNumber = waves.length > 0 ? Math.max(...waves.map(w => w.number)) + 1 : 1
     const options = (newType === 'choice' || newType === 'spectrum')
       ? newOptions.split('\n').map(o => o.trim()).filter(Boolean)
+      : newType === 'vibe'
+      ? buildVibeOptions(
+          newOptions.split('\n').map(o => o.trim()).filter(Boolean).map((line, idx) => {
+            const parts = line.split('|').map(p => p.trim())
+            const title = parts[0] || `Vibe ${idx + 1}`
+            const prompt = parts[1] || `${title} funny cute cartoon character, vibrant comic illustration`
+            const seed = Math.floor(Math.random() * 80000) + 10000 + idx
+            const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&nologo=true&seed=${seed}`
+            return {
+              id: `opt_${idx + 1}`,
+              title,
+              prompt,
+              imageUrl,
+            }
+          })
+        )
       : null
 
     await supabase.from('waves').insert({
@@ -153,6 +169,34 @@ export default function AdminPage() {
       prompt: 'Die Welle ist in 4 Fragmente zerbrochen. Tauscht euch aus und findet das gemeinsame Lösungswort.',
       prompt_type: 'enigma',
       options: enigmaOptions,
+      status: 'active',
+    })
+    await fetchData()
+    setLoading(false)
+  }
+
+  const handleQuickVibeCreate = async () => {
+    setLoading(true)
+    const nextNumber = waves.length > 0 ? Math.max(...waves.map(w => w.number)) + 1 : 1
+    const vibeOptions = buildVibeOptions([
+      {
+        id: 'opt_1',
+        title: 'Zen-Faultier',
+        prompt: 'cute sleepy cartoon sloth hugging a cup of herbal tea, cozy aesthetic illustration, minimalist',
+        imageUrl: 'https://image.pollinations.ai/prompt/cute%20sleepy%20cartoon%20sloth%20hugging%20a%20cup%20of%20herbal%20tea%2C%20cozy%20aesthetic%20illustration?width=512&height=512&nologo=true&seed=42'
+      },
+      {
+        id: 'opt_2',
+        title: 'Hyperaktive Hummel',
+        prompt: 'cute energetic bee zooming with speed trails holding a tiny espresso cup, vibrant cartoon illustration',
+        imageUrl: 'https://image.pollinations.ai/prompt/cute%20energetic%20bee%20zooming%20with%20speed%20trails%20holding%20a%20tiny%20espresso%20cup%2C%20vibrant%20cartoon?width=512&height=512&nologo=true&seed=99'
+      }
+    ])
+    await supabase.from('waves').insert({
+      number: nextNumber,
+      prompt: 'Bist du heute eher das übermüdete Faultier oder die hyperaktive Hummel?',
+      prompt_type: 'vibe',
+      options: vibeOptions,
       status: 'active',
     })
     await fetchData()
@@ -371,6 +415,14 @@ export default function AdminPage() {
             <span className="block font-medium text-[#c8a065] mb-1">🧩 Enigma-Welle (Fragment-Rätsel)</span>
             <span className="text-[#6b6560] block text-[11px]">4 Bruchstücke, die nur kooperativ lösbar sind</span>
           </button>
+          <button
+            onClick={handleQuickVibeCreate}
+            disabled={loading}
+            className="p-3 text-left border border-[#c8a065]/40 hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d] disabled:opacity-40 col-span-2"
+          >
+            <span className="block font-medium text-[#c8a065] mb-1">🎭 Vibe-Check Welle (Bild-Dilemma)</span>
+            <span className="text-[#6b6560] block text-[11px]">KI-Bildkarten (Zen-Faultier vs. Hyperaktive Hummel)</span>
+          </button>
         </div>
       </section>
 
@@ -384,6 +436,7 @@ export default function AdminPage() {
             {([
               { id: 'text', label: 'Text' },
               { id: 'choice', label: 'Auswahl' },
+              { id: 'vibe', label: 'Vibe 🎭' },
               { id: 'spectrum', label: 'Spektrum ⚖️' },
               { id: 'photo', label: 'Foto 📷' },
               { id: 'draw', label: 'Zeichnen 🎨' },
@@ -415,14 +468,20 @@ export default function AdminPage() {
             placeholder="Frage / Prompt..."
           />
 
-          {(newType === 'choice' || newType === 'spectrum') && (
+          {(newType === 'choice' || newType === 'spectrum' || newType === 'vibe') && (
             <textarea
               value={newOptions}
               onChange={e => setNewOptions(e.target.value)}
-              rows={2}
+              rows={newType === 'vibe' ? 3 : 2}
               className="bg-transparent border-b py-2 resize-none focus:outline-none text-sm"
               style={{ borderColor: '#1e1e1e', caretColor: '#c8a065' }}
-              placeholder={newType === 'spectrum' ? "Pol A (links)\nPol B (rechts)" : "Optionen (eine pro Zeile)"}
+              placeholder={
+                newType === 'spectrum'
+                  ? "Pol A (links)\nPol B (rechts)"
+                  : newType === 'vibe'
+                  ? "Titel A | Bild-Prompt A (optional)\nTitel B | Bild-Prompt B (optional)"
+                  : "Optionen (eine pro Zeile)"
+              }
             />
           )}
 

@@ -2,13 +2,14 @@
 
 import { useState } from 'react'
 import type { Wave, Member } from '@/lib/types'
-import { extractGlitch, cleanOptions, extractEnigma } from '@/lib/mystery'
+import { extractGlitch, cleanOptions, extractEnigma, extractVibeOptions } from '@/lib/mystery'
 import DrawCanvas from './DrawCanvas'
 import PhotoCapture from './PhotoCapture'
 import PulseTouch from './PulseTouch'
 import SilenceMoment from './SilenceMoment'
 import SpectrumSlider from './SpectrumSlider'
 import EnigmaPuzzle from './EnigmaPuzzle'
+import VibeSelector from './VibeSelector'
 
 interface Props {
   wave: Wave
@@ -28,12 +29,13 @@ export default function WaveScreen({ wave, member, members, onSubmit }: Props) {
   const isGlitchTarget = glitch?.memberId === member.id
   const displayPrompt = isGlitchTarget ? glitch.prompt : wave.prompt
   const choices = cleanOptions(wave.options)
+  const vibeOptions = extractVibeOptions(wave.options)
 
   const handleSubmit = async (overrideContent?: string) => {
     let content = overrideContent
 
     if (!content) {
-      if (wave.prompt_type === 'choice') content = selected || ''
+      if (wave.prompt_type === 'choice' || wave.prompt_type === 'vibe') content = selected || ''
       else if (wave.prompt_type === 'draw' || wave.prompt_type === 'photo') content = mediaContent
       else content = answer.trim()
     }
@@ -188,20 +190,31 @@ export default function WaveScreen({ wave, member, members, onSubmit }: Props) {
             />
           </div>
         )}
+
+        {/* 9. VIBE SELECTOR (BILD-DILEMMA / VIBE CHECK) */}
+        {wave.prompt_type === 'vibe' && vibeOptions && (
+          <div className="animate-fade-up w-full flex justify-center" style={{ animationDelay: '250ms' }}>
+            <VibeSelector
+              items={vibeOptions}
+              selectedId={selected}
+              onSelect={(item) => setSelected(item.title)}
+            />
+          </div>
+        )}
       </div>
 
       {error && (
         <p className="text-red-400 text-xs text-center mt-3 animate-fade-in">{error}</p>
       )}
 
-      {/* Submit button (nur nötig für Text, Choice, Draw, Photo) */}
-      {['text', 'choice', 'draw', 'photo'].includes(wave.prompt_type) && (
+      {/* Submit button (nötig für Text, Choice, Draw, Photo, Vibe) */}
+      {['text', 'choice', 'draw', 'photo', 'vibe'].includes(wave.prompt_type) && (
         <div className="animate-fade-up mt-8" style={{ animationDelay: '450ms' }}>
           <button
             onClick={handleSubmitClick}
             disabled={
               loading ||
-              (wave.prompt_type === 'choice' && !selected) ||
+              ((wave.prompt_type === 'choice' || wave.prompt_type === 'vibe') && !selected) ||
               (wave.prompt_type === 'text' && !answer.trim()) ||
               ((wave.prompt_type === 'draw' || wave.prompt_type === 'photo') && !mediaContent)
             }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import type { Wave, Member, WaveResponse } from '@/lib/types'
-import { extractEcho, extractGlitch, cleanOptions, extractEnigma } from '@/lib/mystery'
+import { extractEcho, extractGlitch, cleanOptions, extractEnigma, extractVibeOptions } from '@/lib/mystery'
 
 interface Props {
   wave: Wave
@@ -23,7 +23,8 @@ export default function RevealScreen({
   const isSilence = wave.prompt_type === 'silence'
   const isSpectrum = wave.prompt_type === 'spectrum'
   const isEnigma = wave.prompt_type === 'enigma'
-  const supportsBlindGuessing = !isPulse && !isSilence && !isSpectrum && !isEnigma && responses.length > 1
+  const isVibe = wave.prompt_type === 'vibe'
+  const supportsBlindGuessing = !isPulse && !isSilence && !isSpectrum && !isEnigma && !isVibe && responses.length > 1
 
   // Mystery Guessing state
   const [isUnveiled, setIsUnveiled] = useState(!supportsBlindGuessing)
@@ -97,6 +98,8 @@ export default function RevealScreen({
             ? 'Rätsel-Anomalie'
             : isSpectrum
             ? 'Spektrum'
+            : isVibe
+            ? 'Vibe Check'
             : isPulse
             ? 'Resonanz'
             : isSilence
@@ -293,6 +296,104 @@ export default function RevealScreen({
                           {name}
                         </span>
                         <span className="text-xs text-[#e8e4de]">{leanText}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+      ) : isVibe ? (
+        /* SPECIAL CASE: VIBE REVEAL */
+        <div className="flex-1 flex flex-col justify-center animate-fade-up my-4 w-full">
+          {(() => {
+            const vibeItems = extractVibeOptions(wave.options) || []
+            const totalResponses = responses.length || 1
+
+            return (
+              <div className="flex flex-col gap-6 w-full">
+                <div className="text-center mb-2">
+                  <span className="text-xs tracking-[0.25em] uppercase text-[#c8a065]">
+                    Das kollektive Stimmungsbild
+                  </span>
+                </div>
+
+                <div className={`grid gap-4 w-full ${vibeItems.length === 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                  {vibeItems.map(item => {
+                    const voters = responses.filter(r => r.content === item.title || r.content === item.id)
+                    const count = voters.length
+                    const percent = Math.round((count / totalResponses) * 100)
+                    const maxVotes = Math.max(...vibeItems.map(vi => responses.filter(r => r.content === vi.title || r.content === vi.id).length))
+                    const isWinner = count > 0 && count === maxVotes
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-4 rounded-lg border transition-all duration-300 flex flex-col justify-between ${
+                          isWinner && count > 0
+                            ? 'border-[#c8a065] bg-[#c8a065]/5 shadow-[0_0_20px_rgba(200,160,101,0.15)]'
+                            : 'border-[#1e1e1e] bg-[#0d0d0d]'
+                        }`}
+                      >
+                        <div>
+                          {/* Image with zoom on click */}
+                          <div
+                            onClick={() => setLightboxImg(item.imageUrl)}
+                            className="w-full aspect-square rounded-md overflow-hidden bg-[#161616] border border-[#2a2a2a] cursor-zoom-in relative mb-3 group"
+                          >
+                            <img
+                              src={item.imageUrl}
+                              alt={item.title}
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                            {isWinner && count > 0 && (
+                              <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-[#c8a065] text-[#0a0a0a] text-[10px] font-bold tracking-wider uppercase shadow">
+                                Favorit
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Title */}
+                          <h4 className="font-display text-base text-[#e8e4de] font-medium leading-snug mb-2">
+                            {item.title}
+                          </h4>
+                        </div>
+
+                        <div>
+                          {/* Vote Bar */}
+                          <div className="w-full bg-[#1c1c1c] rounded-full h-2 overflow-hidden mb-2">
+                            <div
+                              className="bg-[#c8a065] h-full transition-all duration-700 rounded-full"
+                              style={{ width: `${percent}%` }}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between text-xs text-[#6b6560] mb-3">
+                            <span>{count} {count === 1 ? 'Stimme' : 'Stimmen'}</span>
+                            <span className="font-mono text-[#c8a065]">{percent}%</span>
+                          </div>
+
+                          {/* Voters Tags */}
+                          <div className="flex flex-wrap gap-1.5 pt-2 border-t border-[#181818]">
+                            {voters.length > 0 ? (
+                              voters.map(v => {
+                                const name = getMemberName(v.member_id)
+                                const isMe = currentMember && v.member_id === currentMember.id
+                                return (
+                                  <span
+                                    key={v.id}
+                                    className="px-2 py-0.5 rounded border border-[#c8a065]/40 bg-[#c8a065]/10 text-[11px] tracking-wide text-[#e8e4de]"
+                                  >
+                                    {name} {isMe && <span className="text-[#c8a065]">(Du)</span>}
+                                  </span>
+                                )
+                              })
+                            ) : (
+                              <span className="text-[11px] text-[#444] italic">Niemand</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     )
                   })}

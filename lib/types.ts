@@ -13,6 +13,7 @@ export type WavePromptType =
   | 'pulse' 
   | 'silence'
   | 'enigma'
+  | 'vibe'
 
 export interface Wave {
   id: string

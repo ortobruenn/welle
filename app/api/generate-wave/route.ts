@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { attachGlitchToOptions, buildEnigmaOptions } from '@/lib/mystery'
+import { attachGlitchToOptions, buildEnigmaOptions, buildVibeOptions } from '@/lib/mystery'
 import { sendPushToMembers } from '@/lib/pushServer'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -159,6 +159,46 @@ const CURATED_PROMPTS = [
       'Ich spreche erst, wenn du geschwiegen hast.'
     )
   },
+
+  // VIBE CHECK & BILD-DILEMMA 🎭
+  {
+    prompt: 'Bist du heute eher das übermüdete Faultier oder die hyperaktive Hummel?',
+    glitch_prompt: null,
+    prompt_type: 'vibe',
+    options: buildVibeOptions([
+      {
+        id: 'opt_1',
+        title: 'Zen-Faultier',
+        prompt: 'cute sleepy cartoon sloth hugging a cup of herbal tea, cozy aesthetic illustration, minimalist',
+        imageUrl: 'https://image.pollinations.ai/prompt/cute%20sleepy%20cartoon%20sloth%20hugging%20a%20cup%20of%20herbal%20tea%2C%20cozy%20aesthetic%20illustration?width=512&height=512&nologo=true&seed=42'
+      },
+      {
+        id: 'opt_2',
+        title: 'Hyperaktive Hummel',
+        prompt: 'cute energetic bee zooming with speed trails holding a tiny espresso cup, vibrant cartoon illustration',
+        imageUrl: 'https://image.pollinations.ai/prompt/cute%20energetic%20bee%20zooming%20with%20speed%20trails%20holding%20a%20tiny%20espresso%20cup%2C%20vibrant%20cartoon?width=512&height=512&nologo=true&seed=99'
+      }
+    ])
+  },
+  {
+    prompt: 'Welcher Zustand beschreibt deinen heutigen Modus am besten?',
+    glitch_prompt: null,
+    prompt_type: 'vibe',
+    options: buildVibeOptions([
+      {
+        id: 'opt_1',
+        title: 'Überforderter Waschbär',
+        prompt: 'funny stressed cute cartoon raccoon with wide eyes surrounded by floating sticky notes, comic style',
+        imageUrl: 'https://image.pollinations.ai/prompt/funny%20stressed%20cute%20cartoon%20raccoon%20with%20wide%20eyes%2C%20comic%20style?width=512&height=512&nologo=true&seed=101'
+      },
+      {
+        id: 'opt_2',
+        title: 'Entspannter Capybara',
+        prompt: 'chill cute cartoon capybara sitting in a warm onsen bath with a small yuzu fruit on head, serene aesthetic',
+        imageUrl: 'https://image.pollinations.ai/prompt/chill%20cute%20cartoon%20capybara%20sitting%20in%20a%20warm%20onsen%20bath%20with%20yuzu%20on%20head%2C%20serene%20aesthetic?width=512&height=512&nologo=true&seed=202'
+      }
+    ])
+  },
 ]
 
 export async function POST(req: Request) {
@@ -227,6 +267,7 @@ WICHTIGSTE REGEL: ABWECHSLUNG! Wechsle aktiv zwischen Formaten ab:
 - "text": Tiefgründiger Gedanke oder Alltagsbeobachtung
 - "silence": 20-30 Sekunden Achtsamkeit
 - "enigma": Kooperatives 4-teiliges poetisches Rätsel. "options" MUSS sein: ["__solution__:WORT", "__hint__:Ein kurzer Tipp", "Fragment 1", "Fragment 2", "Fragment 3", "Fragment 4"]
+- "vibe": Humorvolles Bild-Dilemma / Vibe-Check ("Bist du heute eher X oder Y?"). "options" MUSS ein Array von 2 oder 3 Objekten sein: [{"title": "Witziger Titel A", "image_prompt": "englischer Prompt für humorvolle Cartoon/Comic Illustration A"}, {"title": "Witziger Titel B", "image_prompt": "englischer Prompt für humorvolle Cartoon/Comic Illustration B"}]
 
 ${isAnomaly ? `ANOMALIE-MODUS AKTIV: Diese Welle ist eine geheime Asymmetrie ("Der Flüsterer"). 
 Erstelle neben "prompt" ein zusätzliches Feld "glitch_prompt". Das ist eine geheime, leicht gespiegelte oder veränderte Aufforderung, die genau einem Freund heimlich untergeschoben wird (z.B. Normal: "Zeichne etwas, das dir Kraft gibt" vs. Glitch: "Zeichne etwas, das dir Kraft raubt" oder Normal: "Fotografiere etwas Altes" vs. Glitch: "Fotografiere etwas Brandneues").` : ''}
@@ -235,7 +276,7 @@ Beziehe dich subtil auf frühere Stimmungen der Gruppe. Halte Aufforderungen pr�
 Gib AUSSCHLIESSLICH valides JSON zurück:
 {
   "prompt": "Deine Aufforderung hier",
-  "prompt_type": "spectrum" | "photo" | "draw" | "choice" | "text" | "silence" | "enigma",
+  "prompt_type": "spectrum" | "photo" | "draw" | "choice" | "text" | "silence" | "enigma" | "vibe",
   "options": ["Option/Pol A", "Option/Pol B"] | null,
   ${isAnomaly ? '"glitch_prompt": "Die geheime abweichende Flüster-Aufforderung",' : ''}
 }`
@@ -278,6 +319,28 @@ Gib AUSSCHLIESSLICH valides JSON zurück:
       parsed = available.length > 0
         ? available[Math.floor(Math.random() * available.length)]
         : CURATED_PROMPTS[nextNumber % CURATED_PROMPTS.length]
+    }
+
+    // 3.5 Vibe-Optionen transformieren falls nötig
+    if (parsed && parsed.prompt_type === 'vibe' && Array.isArray(parsed.options)) {
+      const isAlreadyBuilt = parsed.options.some((o: any) => typeof o === 'string' && o.startsWith('__vibe__:'))
+      if (!isAlreadyBuilt) {
+        const seedBase = Math.floor(Math.random() * 90000) + 10000
+        const vibeItems = parsed.options.map((opt: any, idx: number) => {
+          const title = typeof opt === 'string' ? opt : (opt.title || `Vibe ${idx + 1}`)
+          const imgPrompt = (typeof opt === 'object' && opt.image_prompt)
+            ? opt.image_prompt
+            : `${title} funny cute cartoon character, vibrant comic illustration`
+          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imgPrompt)}?width=512&height=512&nologo=true&seed=${seedBase + idx}`
+          return {
+            id: `opt_${idx + 1}`,
+            title,
+            prompt: imgPrompt,
+            imageUrl,
+          }
+        })
+        parsed.options = buildVibeOptions(vibeItems)
+      }
     }
 
     // 4. Glitch-Optionen zusammenstellen falls Anomalie

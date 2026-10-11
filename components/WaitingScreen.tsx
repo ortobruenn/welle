@@ -1,6 +1,7 @@
 'use client'
 
 import type { Wave, Member, WaveResponse } from '@/lib/types'
+import { extractVibeOptions } from '@/lib/mystery'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt'
 
 interface Props {
@@ -96,6 +97,21 @@ export default function WaitingScreen({ wave, responses, totalMembers, userRespo
               <p className="text-sm text-[#e8e4de]">
                 Stiller Moment vollzogen.
               </p>
+            </div>
+          ) : wave.prompt_type === 'vibe' ? (
+            <div className="flex flex-col gap-2 my-1">
+              <p className="text-base font-display text-[#c8a065]">„{userResponse.content}“</p>
+              {(() => {
+                const vibeItem = extractVibeOptions(wave.options)?.find(
+                  v => v.title === userResponse.content || v.id === userResponse.content
+                )
+                if (!vibeItem?.imageUrl) return null
+                return (
+                  <div className="w-full aspect-video rounded overflow-hidden border border-[#2a2a2a] bg-[#141414]">
+                    <img src={vibeItem.imageUrl} alt={vibeItem.title} className="w-full h-full object-cover" />
+                  </div>
+                )
+              })()}
             </div>
           ) : userResponse.content.startsWith('data:image/') ? (
             <div className="w-full aspect-square rounded overflow-hidden border border-[#2a2a2a] my-1">
