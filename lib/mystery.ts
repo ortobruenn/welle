@@ -4,6 +4,12 @@ export interface GlitchInfo {
   prompt: string
 }
 
+export interface EnigmaData {
+  solution: string
+  hint?: string
+  fragments: string[]
+}
+
 export function extractEcho(options: string[] | null): string | null {
   if (!options || !Array.isArray(options)) return null
   const item = options.find(o => typeof o === 'string' && o.startsWith('__echo__:'))
@@ -30,10 +36,34 @@ export function extractGlitch(options: string[] | null): GlitchInfo | null {
   return null
 }
 
+export function extractEnigma(options: string[] | null): EnigmaData | null {
+  if (!options || !Array.isArray(options)) return null
+  const solItem = options.find(o => typeof o === 'string' && o.startsWith('__solution__:'))
+  if (!solItem) return null
+  const solution = solItem.slice('__solution__:'.length).trim().toUpperCase()
+  const hintItem = options.find(o => typeof o === 'string' && o.startsWith('__hint__:'))
+  const hint = hintItem ? hintItem.slice('__hint__:'.length).trim() : undefined
+  const fragments = options.filter(
+    o => typeof o === 'string' && !o.startsWith('__')
+  )
+  return { solution, hint, fragments }
+}
+
+export function buildEnigmaOptions(solution: string, fragments: string[], hint?: string): string[] {
+  const result = [`__solution__:${solution.toUpperCase().trim()}`]
+  if (hint) result.push(`__hint__:${hint.trim()}`)
+  result.push(...fragments)
+  return result
+}
+
 export function cleanOptions(options: string[] | null): string[] | null {
   if (!options || !Array.isArray(options)) return null
   const cleaned = options.filter(
-    o => typeof o === 'string' && !o.startsWith('__echo__:') && !o.startsWith('__glitch__:')
+    o => typeof o === 'string' &&
+      !o.startsWith('__echo__:') &&
+      !o.startsWith('__glitch__:') &&
+      !o.startsWith('__solution__:') &&
+      !o.startsWith('__hint__:')
   )
   return cleaned.length > 0 ? cleaned : null
 }

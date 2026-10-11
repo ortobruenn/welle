@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { attachGlitchToOptions } from '@/lib/mystery'
+import { attachGlitchToOptions, buildEnigmaOptions } from '@/lib/mystery'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -111,6 +111,53 @@ const CURATED_PROMPTS = [
     prompt_type: 'text',
     options: null
   },
+
+  // KOOPERATIVE RÄTSEL & FRAGMENTE 🧩
+  {
+    prompt: 'Die Welle ist in 4 Fragmente zerbrochen. Tauscht euch aus und findet das gemeinsame Lösungswort.',
+    glitch_prompt: null,
+    prompt_type: 'enigma',
+    options: buildEnigmaOptions(
+      'FEUER',
+      [
+        'Fütterst du mich, wachse ich und schenke dir wohlige Wärme.',
+        'Gibst du mir Wasser, vergehe ich in bittergrauem Rauch.',
+        'Ich habe keine Knochen, doch tanze ich wild im Wind.',
+        'Ein winziger Funke genügt, um mich zu wecken. Wer bin ich?'
+      ],
+      'Geboren aus dem Funken, hungrig nach Holz.'
+    )
+  },
+  {
+    prompt: 'Die Welle ist in 4 Fragmente zerbrochen. Tauscht euch aus und findet das gemeinsame Lösungswort.',
+    glitch_prompt: null,
+    prompt_type: 'enigma',
+    options: buildEnigmaOptions(
+      'KOMPASS',
+      [
+        'Ich habe keine Augen und schaue stets starr nach Norden.',
+        'Inmitten tosender Stürme bleibe ich unerschütterlich ausgerichtet.',
+        'Mein Zeiger tanzt auf dem unsichtbaren Magnetfeld der Erde.',
+        'Seefahrer vertrauen mir ihr Leben und ihren Kurs an. Wer bin ich?'
+      ],
+      'Ein 7-stelliges Navigationsinstrument.'
+    )
+  },
+  {
+    prompt: 'Die Welle ist in 4 Fragmente zerbrochen. Tauscht euch aus und findet das gemeinsame Lösungswort.',
+    glitch_prompt: null,
+    prompt_type: 'enigma',
+    options: buildEnigmaOptions(
+      'ECHO',
+      [
+        'Ich habe keine eigene Stimme, doch ich antworte jedem deiner Rufe.',
+        'In tiefen Bergtälern und verlassenen Hallen bin ich zuhause.',
+        'Ich wiederhole deine letzten Worte, doch verstehe keines davon.',
+        'Mit jedem Schritt, den du weitergehst, verblasse ich. Wer bin ich?'
+      ],
+      'Ich spreche erst, wenn du geschwiegen hast.'
+    )
+  },
 ]
 
 export async function POST(req: Request) {
@@ -178,6 +225,7 @@ WICHTIGSTE REGEL: ABWECHSLUNG! Wechsle aktiv zwischen Formaten ab:
 - "choice": Unerwartetes A/B-Dilemma mit 2 Optionen
 - "text": Tiefgründiger Gedanke oder Alltagsbeobachtung
 - "silence": 20-30 Sekunden Achtsamkeit
+- "enigma": Kooperatives 4-teiliges poetisches Rätsel. "options" MUSS sein: ["__solution__:WORT", "__hint__:Ein kurzer Tipp", "Fragment 1", "Fragment 2", "Fragment 3", "Fragment 4"]
 
 ${isAnomaly ? `ANOMALIE-MODUS AKTIV: Diese Welle ist eine geheime Asymmetrie ("Der Flüsterer"). 
 Erstelle neben "prompt" ein zusätzliches Feld "glitch_prompt". Das ist eine geheime, leicht gespiegelte oder veränderte Aufforderung, die genau einem Freund heimlich untergeschoben wird (z.B. Normal: "Zeichne etwas, das dir Kraft gibt" vs. Glitch: "Zeichne etwas, das dir Kraft raubt" oder Normal: "Fotografiere etwas Altes" vs. Glitch: "Fotografiere etwas Brandneues").` : ''}
@@ -186,7 +234,7 @@ Beziehe dich subtil auf frühere Stimmungen der Gruppe. Halte Aufforderungen pr�
 Gib AUSSCHLIESSLICH valides JSON zurück:
 {
   "prompt": "Deine Aufforderung hier",
-  "prompt_type": "spectrum" | "photo" | "draw" | "choice" | "text" | "silence",
+  "prompt_type": "spectrum" | "photo" | "draw" | "choice" | "text" | "silence" | "enigma",
   "options": ["Option/Pol A", "Option/Pol B"] | null,
   ${isAnomaly ? '"glitch_prompt": "Die geheime abweichende Flüster-Aufforderung",' : ''}
 }`

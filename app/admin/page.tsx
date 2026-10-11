@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Wave, Member, WaveResponse } from '@/lib/types'
-import { extractEcho, extractGlitch, attachGlitchToOptions } from '@/lib/mystery'
+import { extractEcho, extractGlitch, attachGlitchToOptions, extractEnigma, buildEnigmaOptions } from '@/lib/mystery'
 
 const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE || 'admin'
 
@@ -112,6 +112,30 @@ export default function AdminPage() {
       prompt: 'Zeichne mit einem Strich ein Symbol, das deinen heutigen Tag einfängt.',
       prompt_type: 'draw',
       options: glitchOptions,
+      status: 'active',
+    })
+    await fetchData()
+    setLoading(false)
+  }
+
+  const handleQuickEnigmaCreate = async () => {
+    setLoading(true)
+    const nextNumber = waves.length > 0 ? Math.max(...waves.map(w => w.number)) + 1 : 1
+    const enigmaOptions = buildEnigmaOptions(
+      'KOMPASS',
+      [
+        'Ich habe keine Augen und schaue stets starr nach Norden.',
+        'Inmitten tosender Stürme bleibe ich unerschütterlich ausgerichtet.',
+        'Mein Zeiger tanzt auf dem unsichtbaren Magnetfeld der Erde.',
+        'Seefahrer vertrauen mir ihr Leben und ihren Kurs an. Wer bin ich?'
+      ],
+      'Ein 7-stelliges Navigationsinstrument.'
+    )
+    await supabase.from('waves').insert({
+      number: nextNumber,
+      prompt: 'Die Welle ist in 4 Fragmente zerbrochen. Tauscht euch aus und findet das gemeinsame Lösungswort.',
+      prompt_type: 'enigma',
+      options: enigmaOptions,
       status: 'active',
     })
     await fetchData()
@@ -302,10 +326,18 @@ export default function AdminPage() {
           <button
             onClick={handleQuickGlitchCreate}
             disabled={loading || members.length === 0}
-            className="p-3 text-left border border-[#c8a065]/40 hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d] col-span-2 disabled:opacity-40"
+            className="p-3 text-left border border-[#c8a065]/40 hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d] disabled:opacity-40"
           >
-            <span className="block font-medium text-[#c8a065] mb-1">⚡ Asymmetrische Glitch-Welle (Flüsterer)</span>
-            <span className="text-[#6b6560] block text-[11px]">Gibt 1 zufälligen Mitglied heimlich eine gespiegelte Skizzen-Aufgabe</span>
+            <span className="block font-medium text-[#c8a065] mb-1">⚡ Glitch-Welle (Flüsterer)</span>
+            <span className="text-[#6b6560] block text-[11px]">1 Mitglied erhält heimlich gespiegelte Aufgabe</span>
+          </button>
+          <button
+            onClick={handleQuickEnigmaCreate}
+            disabled={loading}
+            className="p-3 text-left border border-[#c8a065]/40 hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d] disabled:opacity-40"
+          >
+            <span className="block font-medium text-[#c8a065] mb-1">🧩 Enigma-Welle (Fragment-Rätsel)</span>
+            <span className="text-[#6b6560] block text-[11px]">4 Bruchstücke, die nur kooperativ lösbar sind</span>
           </button>
         </div>
       </section>
@@ -324,6 +356,7 @@ export default function AdminPage() {
               { id: 'photo', label: 'Foto 📷' },
               { id: 'draw', label: 'Zeichnen 🎨' },
               { id: 'silence', label: 'Stille 🧘' },
+              { id: 'enigma', label: 'Enigma 🧩' },
             ] as const).map(t => (
               <button
                 key={t.id}
@@ -439,6 +472,12 @@ export default function AdminPage() {
               {extractEcho(w.options) && (
                 <div className="text-xs text-[#a09990] italic mb-3 border-l-2 border-[#c8a065] pl-2.5 py-0.5">
                   🔮 <strong>Orakel-Echo:</strong> „{extractEcho(w.options)}“
+                </div>
+              )}
+
+              {extractEnigma(w.options) && (
+                <div className="text-xs text-[#c8a065] mb-3 bg-[#c8a065]/10 border border-[#c8a065]/30 px-2.5 py-1.5 rounded">
+                  🧩 <strong>Enigma-Lösung:</strong> {extractEnigma(w.options)?.solution} · {extractEnigma(w.options)?.fragments.length} Fragmente
                 </div>
               )}
 

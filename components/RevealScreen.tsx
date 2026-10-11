@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import type { Wave, Member, WaveResponse } from '@/lib/types'
-import { extractEcho, extractGlitch, cleanOptions } from '@/lib/mystery'
+import { extractEcho, extractGlitch, cleanOptions, extractEnigma } from '@/lib/mystery'
 
 interface Props {
   wave: Wave
@@ -22,7 +22,8 @@ export default function RevealScreen({
   const isPulse = wave.prompt_type === 'pulse'
   const isSilence = wave.prompt_type === 'silence'
   const isSpectrum = wave.prompt_type === 'spectrum'
-  const supportsBlindGuessing = !isPulse && !isSilence && !isSpectrum && responses.length > 1
+  const isEnigma = wave.prompt_type === 'enigma'
+  const supportsBlindGuessing = !isPulse && !isSilence && !isSpectrum && !isEnigma && responses.length > 1
 
   // Mystery Guessing state
   const [isUnveiled, setIsUnveiled] = useState(!supportsBlindGuessing)
@@ -92,7 +93,9 @@ export default function RevealScreen({
           Welle {wave.number} · Enthüllung
         </span>
         <span className="text-xs tracking-[0.2em] uppercase" style={{ color: '#c8a065' }}>
-          {isSpectrum
+          {isEnigma
+            ? 'Rätsel-Anomalie'
+            : isSpectrum
             ? 'Spektrum'
             : isPulse
             ? 'Resonanz'
@@ -129,8 +132,62 @@ export default function RevealScreen({
         </div>
       )}
 
-      {/* 1. SPECIAL CASE: SPECTRUM REVEAL */}
-      {isSpectrum ? (
+      {/* 0. SPECIAL CASE: ENIGMA REVEAL */}
+      {isEnigma ? (
+        <div className="flex-1 flex flex-col justify-center animate-fade-up my-4 w-full">
+          {(() => {
+            const enigma = extractEnigma(wave.options)
+            const romanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI']
+            return (
+              <div className="flex flex-col gap-6 w-full">
+                <div className="p-6 md:p-8 border border-[#c8a065]/40 bg-[#0e0c08] rounded-sm shadow-2xl relative overflow-hidden">
+                  <div className="text-center mb-6">
+                    <span className="text-[11px] tracking-[0.3em] uppercase text-[#c8a065] font-semibold">
+                      ✦ Die zusammengefügte Inschrift
+                    </span>
+                  </div>
+
+                  {/* Assembled Fragments in Order */}
+                  <div className="flex flex-col gap-3 mb-6">
+                    {enigma?.fragments.map((frag, idx) => (
+                      <div key={idx} className="p-3.5 bg-[#0a0a0a]/90 border border-[#231d14] rounded">
+                        <span className="text-[10px] tracking-widest text-[#c8a065] uppercase block mb-1">
+                          Fragment {romanNumerals[idx] || `${idx + 1}`}
+                        </span>
+                        <p className="font-display text-base text-[#e8e4de] italic leading-relaxed">
+                          „{frag}“
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Solution Solved Banner */}
+                  <div className="p-4 bg-[#c8a065]/10 border border-[#c8a065] rounded text-center">
+                    <span className="text-[10px] tracking-[0.25em] uppercase text-[#c8a065] block mb-1">
+                      Gelöstes Kollektiv-Siegel
+                    </span>
+                    <span className="font-display text-2xl tracking-[0.3em] text-[#e8e4de] font-semibold">
+                      {enigma?.solution || 'GELÖST'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Solvers */}
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {responses.map(resp => (
+                    <span
+                      key={resp.id}
+                      className="px-3 py-1 border border-[#c8a065]/40 text-xs tracking-[0.15em] text-[#c8a065] rounded-full bg-[#c8a065]/5"
+                    >
+                      ✓ {getMemberName(resp.member_id)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+      ) : isSpectrum ? (
         <div className="flex-1 flex flex-col justify-center animate-fade-up my-4 w-full">
           {(() => {
             const choices = cleanOptions(wave.options)

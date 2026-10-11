@@ -2,20 +2,22 @@
 
 import { useState } from 'react'
 import type { Wave, Member } from '@/lib/types'
-import { extractGlitch, cleanOptions } from '@/lib/mystery'
+import { extractGlitch, cleanOptions, extractEnigma } from '@/lib/mystery'
 import DrawCanvas from './DrawCanvas'
 import PhotoCapture from './PhotoCapture'
 import PulseTouch from './PulseTouch'
 import SilenceMoment from './SilenceMoment'
 import SpectrumSlider from './SpectrumSlider'
+import EnigmaPuzzle from './EnigmaPuzzle'
 
 interface Props {
   wave: Wave
   member: Member
+  members?: Member[]
   onSubmit: (content: string) => Promise<void>
 }
 
-export default function WaveScreen({ wave, member, onSubmit }: Props) {
+export default function WaveScreen({ wave, member, members, onSubmit }: Props) {
   const [answer, setAnswer] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
   const [mediaContent, setMediaContent] = useState<string>('')
@@ -172,6 +174,18 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
         {wave.prompt_type === 'silence' && (
           <div className="animate-fade-up w-full flex justify-center" style={{ animationDelay: '300ms' }}>
             <SilenceMoment onComplete={() => handleSubmit('Stille vollzogen')} />
+          </div>
+        )}
+
+        {/* 8. ENIGMA (KOOPERATIVE FRAGMENT-ANOMALIE) */}
+        {wave.prompt_type === 'enigma' && extractEnigma(wave.options) && (
+          <div className="animate-fade-up w-full flex justify-center" style={{ animationDelay: '250ms' }}>
+            <EnigmaPuzzle
+              enigma={extractEnigma(wave.options)!}
+              member={member}
+              members={members || [member]}
+              onSubmit={handleSubmit}
+            />
           </div>
         )}
       </div>

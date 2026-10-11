@@ -243,7 +243,7 @@ export default function Home() {
   if (appState === 'join') return <JoinScreen onJoin={handleJoin} />
 
   if (appState === 'wave' && wave) {
-    return <WaveScreen wave={wave} member={member!} onSubmit={handleSubmit} />
+    return <WaveScreen wave={wave} member={member!} members={members} onSubmit={handleSubmit} />
   }
 
   if (appState === 'waiting' && wave) {
