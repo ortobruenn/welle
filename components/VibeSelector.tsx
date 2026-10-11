@@ -25,8 +25,8 @@ export default function VibeSelector({ items, selectedId, onSelect }: Props) {
     <div className={`grid gap-4 w-full ${items.length === 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
       {items.map((item) => {
         const isSelected = selectedId === item.id || selectedId === item.title
-        const isLoaded = loadedImages[item.id]
-        const hasFailed = failedImages[item.id]
+        const isLoaded = !!loadedImages[item.id]
+        const hasFailed = !!failedImages[item.id]
 
         return (
           <button
@@ -40,36 +40,47 @@ export default function VibeSelector({ items, selectedId, onSelect }: Props) {
             }`}
           >
             {/* Visual Image Container */}
-            <div className="relative w-full aspect-square rounded-md overflow-hidden bg-[#161616] mb-3">
-              {/* Loading Shimmer Skeleton */}
-              {!isLoaded && !hasFailed && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#181818] animate-pulse">
-                  <span className="text-[#6b6560] text-xs tracking-widest uppercase">Generiere Vibe...</span>
-                </div>
-              )}
-
-              {/* Error fallback */}
+            <div className="relative w-full aspect-square rounded-md overflow-hidden bg-[#161616] mb-3 flex items-center justify-center">
+              {/* Fallback card if image cannot be loaded */}
               {hasFailed ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center bg-[#1c1815]">
-                  <span className="text-2xl mb-1">🎭</span>
-                  <span className="text-xs text-[#a09990]">{item.title}</span>
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-gradient-to-b from-[#1c1815] to-[#12100e]">
+                  <span className="text-4xl mb-2">🎭</span>
+                  <span className="font-display text-sm text-[#e8e4de] line-clamp-2 leading-tight mb-1">{item.title}</span>
+                  <span className="text-[10px] tracking-widest uppercase text-[#c8a065]">Vibe {item.id.replace('opt_', '')}</span>
                 </div>
               ) : (
-                <img
-                  src={item.imageUrl}
-                  alt={item.title}
-                  loading="lazy"
-                  onLoad={() => handleImageLoad(item.id)}
-                  onError={() => handleImageError(item.id)}
-                  className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-105 ${
-                    isLoaded ? 'opacity-100' : 'opacity-0'
-                  }`}
-                />
+                <>
+                  {/* Loading Shimmer Skeleton (nur im Hintergrund solange Bild lädt) */}
+                  {!isLoaded && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#181818] animate-pulse">
+                      <span className="text-2xl mb-1 opacity-40">✨</span>
+                      <span className="text-[#6b6560] text-[11px] tracking-widest uppercase">Lade Bild...</span>
+                    </div>
+                  )}
+
+                  {/* Eager image rendering: Kein loading="lazy", damit WebKit nicht blockiert */}
+                  <img
+                    src={item.imageUrl}
+                    alt={item.title}
+                    loading="eager"
+                    decoding="async"
+                    onLoad={() => handleImageLoad(item.id)}
+                    onError={() => handleImageError(item.id)}
+                    ref={(el) => {
+                      if (el && el.complete && el.naturalWidth > 0 && !loadedImages[item.id]) {
+                        handleImageLoad(item.id)
+                      }
+                    }}
+                    className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
+                      isLoaded ? 'opacity-100' : 'opacity-90'
+                    }`}
+                  />
+                </>
               )}
 
               {/* Selection Checkmark Overlay */}
               {isSelected && (
-                <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#c8a065] text-[#0a0a0a] flex items-center justify-center text-xs font-bold shadow-md">
+                <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#c8a065] text-[#0a0a0a] flex items-center justify-center text-xs font-bold shadow-md z-20">
                   ✓
                 </div>
               )}

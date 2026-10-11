@@ -193,11 +193,31 @@ export async function generateWaveContent(
 ): Promise<{ prompt: string; prompt_type: string; options: string[] | null }> {
   let contextText = ''
   if (previousWaves && previousWaves.length > 0) {
-    contextText = 'Bisherige Wellen und Antworten der Gruppe:\n' + previousWaves.map(w => {
+    contextText = 'Bisherige Wellen der Gruppe:\n' + previousWaves.map(w => {
       const respList = (w.responses || []).map((r: any) => `"${r.content}"`).join(', ')
-      return `Welle ${w.number}: Frage "${w.prompt}" | Antworten: [${respList}]`
+      return `Welle ${w.number} [Format: ${w.prompt_type || 'text'}]: "${w.prompt}" | Antworten: [${respList}]`
     }).join('\n')
   }
+
+  // Letzte 2-3 Formate ermitteln – DIESE DÜRFEN SICH KEINESFALLS WIEDERHOLEN!
+  const recentTypes = (previousWaves || [])
+    .map(w => w.prompt_type)
+    .filter(Boolean) as string[]
+  const forbiddenTypes = Array.from(new Set(recentTypes.slice(0, 2)))
+
+  const ALL_FORMATS = [
+    { type: 'spectrum', desc: 'Philosophische Achse mit 2 prägnanten Polen in "options" (z.B. ["Kühler Verstand", "Blinde Intuition"])' },
+    { type: 'photo', desc: 'Foto-Ausschnitt aus der realen Umgebung (z.B. Blick aus dem Fenster, Textur, Farbe)' },
+    { type: 'draw', desc: 'Minimalistische Finger-Zeichnung auf Canvas' },
+    { type: 'choice', desc: 'Unerwartetes A/B-Dilemma mit 2 Text-Optionen' },
+    { type: 'pulse', desc: '7 Sekunden Atemzug / Kreis gedrückt halten rein nach Gefühl' },
+    { type: 'silence', desc: '30 Sekunden Stille & Achtsamkeit ohne Tastendruck' },
+    { type: 'enigma', desc: 'Kooperatives 4-teiliges poetisches Rätsel ("options": ["__solution__:WORT", "__hint__:Tipp", "Teil 1", "Teil 2", "Teil 3", "Teil 4"])' },
+    { type: 'text', desc: 'Tiefgründiger Gedanke oder Alltagsbeobachtung in Freitext' },
+    { type: 'vibe', desc: 'Humorvolles Bild-Dilemma / Vibe-Check ("Bist du heute eher X oder Y?") mit 2 Cartoon-Charakteren' }
+  ]
+
+  const allowedFormats = ALL_FORMATS.filter(f => !forbiddenTypes.includes(f.type))
 
   const memberList = members || []
   const isAnomaly = memberList.length >= 2 && (nextNumber % 3 === 0 || Math.random() < 0.25)
@@ -206,18 +226,12 @@ export async function generateWaveContent(
 Die Nutzer sind 4 gute Freunde, die zusammen lernen, aber im Alltag getrennt leben.
 Deine Aufgabe ist es, die NÄCHSTE Welle zu kreieren.
 
-WICHTIGSTE REGEL: ABWECHSLUNG! Wechsle aktiv zwischen Formaten ab:
-- "spectrum": Philosophische Achse mit genau 2 prägnanten Polen in "options" (z.B. ["Kühler Verstand", "Blinde Intuition"])
-- "photo": Ein Foto-Ausschnitt aus der realen Umgebung
-- "draw": Minimalistische Finger-Zeichnung
-- "choice": Unerwartetes A/B-Dilemma mit 2 Optionen
-- "text": Tiefgründiger Gedanke oder Alltagsbeobachtung
-- "silence": 20-30 Sekunden Achtsamkeit
-- "enigma": Kooperatives 4-teiliges poetisches Rätsel. "options" MUSS sein: ["__solution__:WORT", "__hint__:Ein kurzer Tipp", "Fragment 1", "Fragment 2", "Fragment 3", "Fragment 4"]
-- "vibe": Humorvolles Bild-Dilemma / Vibe-Check ("Bist du heute eher X oder Y?"). "options" MUSS ein Array von 2 oder 3 Objekten sein: [{"title": "Witziger Titel A", "image_prompt": "englischer Prompt für humorvolle Cartoon/Comic Illustration A"}, {"title": "Witziger Titel B", "image_prompt": "englischer Prompt für humorvolle Cartoon/Comic Illustration B"}]
+OBERSTE REGEL: FORMAT-ABWECHSLUNG!
+Die letzten Wellen hatten folgende Formate: ${forbiddenTypes.length > 0 ? forbiddenTypes.join(', ') : 'keine'}.
+DIESE FORMATE SIND FÜR DIE NÄCHSTE WELLE STRENG VERBOTEN!
 
-WICHTIG für Bild-Dilemma ("vibe"):
-- "image_prompt" muss auf ENGLISCH sein, bildhaft, cartoon/comicartig, liebenswert und witzig (z.B. "funny stressed raccoon with messy desk" oder "serene capybara in hot spring").
+Wähle zwingend eines der folgenden ERLAUBTEN Formate:
+${allowedFormats.map(f => `- "${f.type}": ${f.desc}`).join('\n')}
 
 Format-Regeln:
 ${isAnomaly ? `- ANOMALIE AKTIV ("Der Flüsterer"): Erzeuge "glitch_prompt" (eine verdrehte, geheime Variante für genau einen Spieler!).` : '- Keine Anomalie: "glitch_prompt" ist null.'}
@@ -228,7 +242,7 @@ ${contextText}
 Antworte STRIKT im JSON-Format:
 {
   "prompt": "Die Hauptfrage / Anweisung an alle",
-  "prompt_type": "text" | "choice" | "draw" | "photo" | "spectrum" | "silence" | "enigma" | "vibe",
+  "prompt_type": "${allowedFormats.map(f => f.type).join('" | "')}",
   "options": ["Option 1", "Option 2"] | null,
   "glitch_prompt": "Verdrehte geheime Variante für den Flüsterer" | null
 }`
@@ -261,13 +275,18 @@ Antworte STRIKT im JSON-Format:
     }
   }
 
-  // Intelligenter Pool-Fallback
-  if (!parsed || !parsed.prompt) {
+  // Intelligenter Pool-Fallback MIT STRIKTER ABWECHSLUNGS-GARANTIE:
+  // Falls Gemini fehlt, fehlschlägt ODER trotz Verbot wieder ein vor kurzem genutztes Format gewählt hat:
+  if (!parsed || !parsed.prompt || forbiddenTypes.includes(parsed.prompt_type)) {
+    if (parsed?.prompt_type && forbiddenTypes.includes(parsed.prompt_type)) {
+      console.warn(`[Wave] Gemini ignorierte Diversität und wählte verbotenes Format "${parsed.prompt_type}". Ersetze durch erlaubtes Pool-Format!`)
+    }
     const pastPrompts = (previousWaves || []).map(w => w.prompt)
-    const available = CURATED_PROMPTS.filter(p => !pastPrompts.includes(p.prompt))
-    parsed = available.length > 0
-      ? available[Math.floor(Math.random() * available.length)]
-      : CURATED_PROMPTS[nextNumber % CURATED_PROMPTS.length]
+    // Nur Formate erlauben, die nicht in den letzten 2 Wellen waren
+    const availableAllowed = CURATED_PROMPTS.filter(p => !forbiddenTypes.includes(p.prompt_type))
+    const freshAllowed = availableAllowed.filter(p => !pastPrompts.includes(p.prompt))
+    const pool = freshAllowed.length > 0 ? freshAllowed : (availableAllowed.length > 0 ? availableAllowed : CURATED_PROMPTS)
+    parsed = pool[Math.floor(Math.random() * pool.length)]
   }
 
   // Vibe-Optionen transformieren falls nötig
@@ -325,7 +344,7 @@ export async function prepareWaveContent(waveId?: string): Promise<{ success: bo
   }
 
   const [{ data: previousWaves }, { data: members }] = await Promise.all([
-    supabase.from('waves').select('number, prompt, responses(content)').order('number', { ascending: false }).limit(5),
+    supabase.from('waves').select('number, prompt, prompt_type, responses(content)').order('number', { ascending: false }).limit(6),
     supabase.from('members').select('id, name')
   ])
 
@@ -384,7 +403,7 @@ export async function activateWaveInternal(force = false): Promise<{ success: bo
 
     // Vorherige Wellen und Mitglieder holen
     const [{ data: previousWaves }, { data: members }] = await Promise.all([
-      supabase.from('waves').select('number, prompt, responses(content)').order('number', { ascending: false }).limit(5),
+      supabase.from('waves').select('number, prompt, prompt_type, responses(content)').order('number', { ascending: false }).limit(6),
       supabase.from('members').select('id, name')
     ])
 
