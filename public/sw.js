@@ -20,8 +20,8 @@ self.addEventListener('push', (event) => {
   const title = payload.title || 'Welle ∿';
   const options = {
     body: payload.body || 'Ein neuer Impuls wartet auf dich.',
-    icon: '/icons/icon-192.png',
-    badge: '/icons/icon-192.png',
+    icon: '/icons/icon-192.png?v=2',
+    badge: '/icons/icon-192.png?v=2',
     tag: payload.tag || ('welle-' + Date.now()),
     renotify: true,
     data: {
