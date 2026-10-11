@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import type { Wave } from '@/lib/types'
-import PushNotificationPrompt from '@/components/PushNotificationPrompt'
 
 interface Props {
   wave: Wave | null
@@ -97,10 +96,6 @@ export default function CooldownScreen({ wave, memberId, onWaveReady }: Props) {
             die nächste welle wird vorbereitet
           </p>
         </div>
-      )}
-
-      {memberId && (
-        <PushNotificationPrompt memberId={memberId} className="mt-10" />
       )}
 
       <p

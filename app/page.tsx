@@ -9,6 +9,7 @@ import WaveScreen from '@/components/WaveScreen'
 import WaitingScreen from '@/components/WaitingScreen'
 import RevealScreen from '@/components/RevealScreen'
 import CooldownScreen from '@/components/CooldownScreen'
+import PushNotificationPrompt from '@/components/PushNotificationPrompt'
 
 type AppState = 'loading' | 'mystery' | 'join' | 'wave' | 'waiting' | 'reveal' | 'waiting_cooldown' | 'cooldown'
 
@@ -247,77 +248,90 @@ export default function Home() {
     await loadAppState(member.id)
   }
 
-  // Loading state
-  if (appState === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#0a0a0a' }}>
-        <div className="w-2 h-2 rounded-full animate-breathe" style={{ background: '#c8a065' }} />
-      </div>
-    )
+  const renderScreen = () => {
+    // Loading state
+    if (appState === 'loading') {
+      return (
+        <div className="min-h-screen flex items-center justify-center" style={{ background: '#0a0a0a' }}>
+          <div className="w-2 h-2 rounded-full animate-breathe" style={{ background: '#c8a065' }} />
+        </div>
+      )
+    }
+
+    if (appState === 'mystery') return <MysteryScreen onComplete={() => setAppState('join')} />
+    if (appState === 'join') return <JoinScreen onJoin={handleJoin} />
+
+    if (appState === 'wave' && wave) {
+      return <WaveScreen wave={wave} member={member!} members={members} onSubmit={handleSubmit} />
+    }
+
+    if (appState === 'waiting' && wave) {
+      return (
+        <WaitingScreen
+          wave={wave}
+          responses={responses}
+          members={members}
+          totalMembers={TOTAL_MEMBERS}
+          userResponse={userResponse}
+        />
+      )
+    }
+
+    if (appState === 'reveal' && wave) {
+      return (
+        <RevealScreen
+          wave={wave}
+          responses={responses}
+          members={members}
+          currentMember={member}
+          onComplete={async () => {
+            if (!member) return
+            // Speichere, dass dieser Nutzer den Reveal gesehen hat
+            await supabase
+              .from('reveals_seen')
+              .upsert({ wave_id: wave.id, member_id: member.id })
+
+            await loadAppState(member.id)
+          }}
+        />
+      )
+    }
+
+    if (appState === 'waiting_cooldown') {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center px-8" style={{ background: '#0a0a0a' }}>
+          <div className="font-display text-5xl font-light mb-8 animate-breathe" style={{ color: '#c8a065' }}>∿</div>
+          <p className="text-sm tracking-[0.2em] uppercase text-center mb-3" style={{ color: '#e8e4de' }}>
+            Du hast die Welle gesehen
+          </p>
+          <p className="text-xs tracking-[0.25em] uppercase text-center" style={{ color: '#6b6560' }}>
+            Die Ruhephase beginnt, sobald alle die Antworten gelesen haben
+          </p>
+        </div>
+      )
+    }
+
+    if (appState === 'cooldown') {
+      return (
+        <CooldownScreen
+          wave={wave}
+          memberId={member?.id}
+          onWaveReady={() => member && loadAppState(member.id)}
+        />
+      )
+    }
+
+    return null
   }
 
-  if (appState === 'mystery') return <MysteryScreen onComplete={() => setAppState('join')} />
-  if (appState === 'join') return <JoinScreen onJoin={handleJoin} />
-
-  if (appState === 'wave' && wave) {
-    return <WaveScreen wave={wave} member={member!} members={members} onSubmit={handleSubmit} />
-  }
-
-  if (appState === 'waiting' && wave) {
-    return (
-      <WaitingScreen
-        wave={wave}
-        responses={responses}
-        members={members}
-        totalMembers={TOTAL_MEMBERS}
-        userResponse={userResponse}
-      />
-    )
-  }
-
-  if (appState === 'reveal' && wave) {
-    return (
-      <RevealScreen
-        wave={wave}
-        responses={responses}
-        members={members}
-        currentMember={member}
-        onComplete={async () => {
-          if (!member) return
-          // Speichere, dass dieser Nutzer den Reveal gesehen hat
-          await supabase
-            .from('reveals_seen')
-            .upsert({ wave_id: wave.id, member_id: member.id })
-
-          await loadAppState(member.id)
-        }}
-      />
-    )
-  }
-
-  if (appState === 'waiting_cooldown') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-8" style={{ background: '#0a0a0a' }}>
-        <div className="font-display text-5xl font-light mb-8 animate-breathe" style={{ color: '#c8a065' }}>∿</div>
-        <p className="text-sm tracking-[0.2em] uppercase text-center mb-3" style={{ color: '#e8e4de' }}>
-          Du hast die Welle gesehen
-        </p>
-        <p className="text-xs tracking-[0.25em] uppercase text-center" style={{ color: '#6b6560' }}>
-          Die Ruhephase beginnt, sobald alle die Antworten gelesen haben
-        </p>
-      </div>
-    )
-  }
-
-  if (appState === 'cooldown') {
-    return (
-      <CooldownScreen
-        wave={wave}
-        memberId={member?.id}
-        onWaveReady={() => member && loadAppState(member.id)}
-      />
-    )
-  }
-
-  return null
+  return (
+    <>
+      {member && appState !== 'mystery' && appState !== 'join' && appState !== 'loading' && (
+        <div className="fixed top-4 left-4 right-4 z-40 max-w-sm mx-auto pointer-events-auto">
+          <PushNotificationPrompt memberId={member.id} />
+        </div>
+      )}
+      {renderScreen()}
+    </>
+  )
 }

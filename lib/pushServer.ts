@@ -5,8 +5,12 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-const privateKey = process.env.VAPID_PRIVATE_KEY
+const publicKey =
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
+  'BP74Vf6fz3p_eAlhZWAMPkS0UU-PS8WYfDCZUesMaTKOZqKXtXyAafKsnpGFgNggxuafj4Q67BF2ZpNRJDn5N2I'
+const privateKey =
+  process.env.VAPID_PRIVATE_KEY ||
+  'hd14eA3D5dVg9YW2scgESbqe2P_iMr3VPUGwSGkoUSM'
 const subject = process.env.VAPID_SUBJECT || 'mailto:app@welle.internal'
 
 if (publicKey && privateKey) {

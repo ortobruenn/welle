@@ -28,7 +28,9 @@ export async function subscribeToPush(memberId: string): Promise<boolean> {
     return false
   }
 
-  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  const vapidPublicKey =
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
+    'BP74Vf6fz3p_eAlhZWAMPkS0UU-PS8WYfDCZUesMaTKOZqKXtXyAafKsnpGFgNggxuafj4Q67BF2ZpNRJDn5N2I'
   if (!vapidPublicKey) {
     console.warn('[Push] NEXT_PUBLIC_VAPID_PUBLIC_KEY is not set.')
     return false

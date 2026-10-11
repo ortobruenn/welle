@@ -13,6 +13,7 @@ export default function PushNotificationPrompt({ memberId, className = '' }: Pro
   const [isIosNotPwa, setIsIosNotPwa] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
+  const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
     // 1. Service Worker registrieren
@@ -62,6 +63,10 @@ export default function PushNotificationPrompt({ memberId, className = '' }: Pro
     }
   }
 
+  if (dismissed) {
+    return null
+  }
+
   // Wenn bereits erlaubt und kein Erfolgs-Feedback gerade aktiv ist, unauffällig bleiben
   if (permission === 'granted' && !isSuccess) {
     return null
@@ -70,13 +75,20 @@ export default function PushNotificationPrompt({ memberId, className = '' }: Pro
   if (isIosNotPwa) {
     return (
       <div
-        className={`w-full max-w-sm mx-auto p-4 rounded-xl border text-left ${className}`}
+        className={`w-full max-w-sm mx-auto p-4 rounded-xl border text-left relative ${className}`}
         style={{
           background: 'rgba(20, 20, 20, 0.7)',
           borderColor: 'rgba(200, 160, 101, 0.25)',
           backdropFilter: 'blur(10px)',
         }}
       >
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          className="absolute top-2.5 right-2.5 w-6 h-6 flex items-center justify-center text-[#6b6560] hover:text-[#e8e4de] text-xs"
+        >
+          ✕
+        </button>
         <div className="flex items-start gap-3">
           <span className="text-lg" style={{ color: '#c8a065' }}>
             ∿
@@ -126,13 +138,20 @@ export default function PushNotificationPrompt({ memberId, className = '' }: Pro
 
   return (
     <div
-      className={`w-full max-w-sm mx-auto p-4 rounded-xl border text-center animate-fade-in ${className}`}
+      className={`w-full max-w-sm mx-auto p-4 rounded-xl border text-center animate-fade-in relative shadow-2xl ${className}`}
       style={{
-        background: 'rgba(18, 18, 18, 0.75)',
-        borderColor: 'rgba(200, 160, 101, 0.2)',
-        backdropFilter: 'blur(12px)',
+        background: 'rgba(18, 18, 18, 0.85)',
+        borderColor: 'rgba(200, 160, 101, 0.3)',
+        backdropFilter: 'blur(16px)',
       }}
     >
+      <button
+        type="button"
+        onClick={() => setDismissed(true)}
+        className="absolute top-2.5 right-2.5 w-6 h-6 flex items-center justify-center text-[#6b6560] hover:text-[#e8e4de] text-xs cursor-pointer"
+      >
+        ✕
+      </button>
       <p className="text-xs font-medium uppercase tracking-[0.18em] mb-1" style={{ color: '#e8e4de' }}>
         Nichts verpassen
       </p>
