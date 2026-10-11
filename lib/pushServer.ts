@@ -11,7 +11,7 @@ const publicKey =
 const privateKey =
   process.env.VAPID_PRIVATE_KEY ||
   'hd14eA3D5dVg9YW2scgESbqe2P_iMr3VPUGwSGkoUSM'
-const subject = process.env.VAPID_SUBJECT || 'mailto:app@welle.internal'
+const subject = process.env.VAPID_SUBJECT || 'mailto:support@welle-nu.vercel.app'
 
 if (publicKey && privateKey) {
   webpush.setVapidDetails(subject, publicKey, privateKey)
