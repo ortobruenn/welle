@@ -202,6 +202,8 @@ const CURATED_PROMPTS = [
 ]
 
 export async function POST(req: Request) {
+  let lockedWaveId: string | null = null
+
   try {
     let force = false
     try {
@@ -211,7 +213,7 @@ export async function POST(req: Request) {
       // kein JSON body
     }
 
-    // 0. Prüfen, ob bereits eine aktive Welle existiert (verhindert Race Condition durch mehrere Clients)
+    // 0. Prüfen, ob bereits eine aktive Welle existiert oder Cooldown noch läuft
     if (!force) {
       const { data: latestActive } = await supabase
         .from('waves')
@@ -223,6 +225,33 @@ export async function POST(req: Request) {
         const topWave = latestActive[0]
         if (topWave.status === 'active') {
           return NextResponse.json({ success: true, wave: topWave, deduplicated: true })
+        }
+
+        // Wenn die Welle im Cooldown ist: Prüfen, ob die Zeit abgelaufen ist
+        if (topWave.status === 'cooldown' && topWave.next_wave_at) {
+          const isTimeUp = new Date(topWave.next_wave_at).getTime() <= Date.now()
+          if (!isTimeUp) {
+            return NextResponse.json({ success: false, message: 'Cooldown noch aktiv', wave: topWave })
+          }
+
+          // Atomare Sperre: next_wave_at um 5 Minuten in die Zukunft verschieben,
+          // aber NUR wenn next_wave_at <= now() ist.
+          // Nur ein einziger Aufruf (von mehreren gleichzeitigen Clients oder Cron) gewinnt diesen Lock.
+          const lockTime = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+          const { data: claimed } = await supabase
+            .from('waves')
+            .update({ next_wave_at: lockTime })
+            .eq('id', topWave.id)
+            .eq('status', 'cooldown')
+            .lte('next_wave_at', new Date().toISOString())
+            .select()
+
+          if (!claimed || claimed.length === 0) {
+            // Ein anderer Client oder Cron generiert die nächste Welle bereits
+            return NextResponse.json({ success: true, wave: topWave, inProgress: true })
+          }
+
+          lockedWaveId = topWave.id
         }
       }
     }
@@ -385,6 +414,14 @@ Gib AUSSCHLIESSLICH valides JSON zurück:
     return NextResponse.json({ success: true, wave: newWave })
   } catch (error: any) {
     console.error('Error in generate-wave:', error)
+    if (lockedWaveId) {
+      try {
+        await supabase
+          .from('waves')
+          .update({ next_wave_at: new Date().toISOString() })
+          .eq('id', lockedWaveId)
+      } catch {}
+    }
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

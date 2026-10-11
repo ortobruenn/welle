@@ -34,21 +34,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Sofortige Bestätigungs-Benachrichtigung an das neue Gerät schicken
-    try {
-      const { sendPushToMembers } = await import('@/lib/pushServer')
-      await sendPushToMembers({
-        memberIds: [memberId],
-        payload: {
-          title: 'Welle verbunden ∿',
-          body: 'Das Signal steht. Du wirst gerufen, sobald der Kreis der Vier schwingt.',
-          url: '/',
-        },
-      })
-    } catch (e) {
-      console.warn('[Push] Welcome push warning:', e)
-    }
-
     return NextResponse.json({ success: true })
   } catch (err: any) {
     console.error('[Push] Subscribe route error:', err)

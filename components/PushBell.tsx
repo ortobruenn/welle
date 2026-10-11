@@ -65,37 +65,11 @@ export default function PushBell({ memberId }: Props) {
         return
       }
 
-      // 2. Lokaler Test über Service Worker
-      if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.ready
-        if (reg) {
-          try {
-            await reg.showNotification('Welle Direkt-Signal ∿', {
-              body: 'Gerätetest erfolgreich! Benachrichtigungen auf diesem Gerät funktionieren.',
-              icon: '/icons/icon-192.png',
-              tag: 'direct-' + Date.now(),
-              renotify: true,
-            } as any)
-          } catch (localErr: any) {
-            console.warn('Local notification error:', localErr)
-          }
-        }
-      }
-
-      // 3. Im Backend registrieren & Server-Push auslösen
+      // 2. Im Backend registrieren
       await subscribeToPush(memberId)
-      await fetch('/api/push/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          memberId,
-          title: 'Welle Server-Signal ∿',
-          body: 'Das Signal wurde erfolgreich vom Server zugestellt.',
-        }),
-      })
 
       setStatus('active')
-      setFeedback('Test gesendet!')
+      setFeedback('Aktiviert')
       setTimeout(() => setFeedback(null), 3000)
     } catch (e: any) {
       alert('Push-Fehler: ' + e?.message)

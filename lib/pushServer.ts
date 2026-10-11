@@ -47,14 +47,43 @@ export async function sendPushToMembers(options: {
     return { sent: 0, failed: 0 }
   }
 
+  // Dedupliziere Subscriptions: Pro Mitglied und Provider-Origin (z.B. Apple, Google) nur die aktuellste Subscription verwenden
+  const validSubscriptions: typeof subscriptions = []
+  const obsoleteEndpoints: string[] = []
+  const seenKeys = new Set<string>()
+
+  // Sortiere absteigend nach Aktualität (neueste zuerst)
+  const sortedSubs = [...subscriptions].sort((a, b) => {
+    const timeA = new Date(a.updated_at || a.created_at || 0).getTime()
+    const timeB = new Date(b.updated_at || b.created_at || 0).getTime()
+    return timeB - timeA
+  })
+
+  for (const sub of sortedSubs) {
+    let origin = 'unknown'
+    try {
+      origin = new URL(sub.endpoint).origin
+    } catch {
+      origin = sub.endpoint.split('/')[2] || 'unknown'
+    }
+
+    const key = `${sub.member_id}:${origin}`
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key)
+      validSubscriptions.push(sub)
+    } else {
+      obsoleteEndpoints.push(sub.endpoint)
+    }
+  }
+
   let sent = 0
   let failed = 0
-  const expiredEndpoints: string[] = []
+  const expiredEndpoints: string[] = [...obsoleteEndpoints]
 
   const payloadString = JSON.stringify(options.payload)
 
   await Promise.allSettled(
-    subscriptions.map(async (sub) => {
+    validSubscriptions.map(async (sub) => {
       const pushSubscription = {
         endpoint: sub.endpoint,
         keys: {
