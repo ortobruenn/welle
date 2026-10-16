@@ -182,6 +182,44 @@ export default function AdminPage() {
     }
   }
 
+  const deleteAllMembers = async () => {
+    if (!confirm(`Möchtest du wirklich ALLE ${members.length} Mitglieder löschen?`)) return
+    setLoading(true)
+    try {
+      await supabase.from('push_subscriptions').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabase.from('responses').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabase.from('reveals_seen').delete().neq('wave_id', '00000000-0000-0000-0000-000000000000')
+      await supabase.from('members').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      localStorage.removeItem('welle_member_id')
+      localStorage.removeItem('welle_member_name')
+      await fetchData()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleFactoryReset = async () => {
+    const input = prompt(
+      'Achtung: Dies löscht ALLE Wellen, Antworten, Reaktionen, Push-Abos und Mitglieder!\n\nTippe "RESET" ein, um die App auf Werkseinstellungen für den Release zurückzusetzen:'
+    )
+    if (input !== 'RESET') return
+
+    setLoading(true)
+    try {
+      await supabase.from('push_subscriptions').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabase.from('responses').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabase.from('reveals_seen').delete().neq('wave_id', '00000000-0000-0000-0000-000000000000')
+      await supabase.from('waves').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      await supabase.from('members').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+      localStorage.removeItem('welle_member_id')
+      localStorage.removeItem('welle_member_name')
+      await fetchData()
+      alert('Die App wurde erfolgreich komplett zurückgesetzt! Die nächste Welle startet wieder bei #1.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (!authed) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-8">
@@ -404,6 +442,15 @@ export default function AdminPage() {
           <h2 className="text-xs tracking-[0.22em] uppercase" style={{ color: '#7c766e' }}>
             Freundeskreis ({members.length})
           </h2>
+          {members.length > 0 && (
+            <button
+              onClick={deleteAllMembers}
+              disabled={loading}
+              className="text-xs uppercase tracking-wider text-red-400 hover:text-red-300 cursor-pointer"
+            >
+              Alle entfernen ✕
+            </button>
+          )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {members.map(m => (
@@ -493,6 +540,29 @@ export default function AdminPage() {
               </div>
             )
           })}
+        </div>
+      </section>
+
+      {/* Danger Zone: Release-Reset / Werkseinstellungen */}
+      <section className="rounded-2xl p-5 border border-red-500/30 bg-red-950/20 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xs tracking-[0.22em] uppercase font-semibold text-red-400">
+              ⚠️ Release-Reset (Werkseinstellungen)
+            </h2>
+            <p className="text-[12px] text-[#9c958c] mt-1 leading-relaxed">
+              Setzt die gesamte Datenbank für den Start mit deiner Gruppe auf Werkseinstellungen zurück:
+              Löscht alle Test-Wellen, Antworten, Reaktionen, Push-Abos und Mitglieder. Die App startet danach
+              sauber bei Welle #1.
+            </p>
+          </div>
+          <button
+            onClick={handleFactoryReset}
+            disabled={loading}
+            className="px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider font-semibold border border-red-500/60 text-red-300 hover:bg-red-500/20 cursor-pointer whitespace-nowrap self-start sm:self-auto shrink-0"
+          >
+            App komplett zurücksetzen 💣
+          </button>
         </div>
       </section>
     </div>
