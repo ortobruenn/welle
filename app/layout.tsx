@@ -1,6 +1,12 @@
 import type { Metadata, Viewport } from 'next'
-import { Space_Grotesk, Cormorant_Garamond } from 'next/font/google'
+import { Space_Grotesk, Cormorant_Garamond, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-mono',
+})
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -50,7 +56,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de" className={`${spaceGrotesk.variable} ${cormorant.variable}`}>
+    <html lang="de" className={`${spaceGrotesk.variable} ${cormorant.variable} ${jetbrainsMono.variable}`}>
       <head>
         <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2" />
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=2" />
@@ -60,7 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="format-detection" content="telephone=no" />
       </head>
-      <body className="min-h-screen antialiased" style={{ background: '#0a0a0a', color: '#e8e4de' }}>
+      <body className="min-h-screen antialiased">
         {children}
         <script
           dangerouslySetInnerHTML={{

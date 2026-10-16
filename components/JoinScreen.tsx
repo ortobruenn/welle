@@ -43,23 +43,26 @@ export default function JoinScreen({ members = [], onJoin }: Props) {
 
       <div className="my-auto space-y-8 animate-fade-up">
         {/* Title */}
-        <div className="text-center space-y-3">
-          <div className="font-display text-6xl font-light" style={{ color: '#d4a359' }}>
+        <div className="text-center space-y-4">
+          <div
+            className="font-display text-6xl font-light animate-float"
+            style={{ color: '#d4a359', textShadow: '0 0 32px rgba(212,163,89,0.45)' }}
+          >
             ∿
           </div>
-          <h1 className="font-display text-4xl font-light" style={{ color: '#f2efe9' }}>
-            Tritt in die Welle ein
+          <h1 className="title-display text-[42px]">
+            Tritt in die <em>Welle</em> ein
           </h1>
-          <p className="text-xs leading-relaxed max-w-xs mx-auto" style={{ color: '#9c958c' }}>
+          <p className="text-[13px] leading-relaxed max-w-xs mx-auto" style={{ color: '#9c958c' }}>
             Ein synchroner Raum für euren Freundeskreis. Niemand sieht etwas, bevor nicht alle geantwortet haben.
           </p>
         </div>
 
         {/* Fast Re-entry for Existing Members */}
         {members.length > 0 && (
-          <div className="glass-card rounded-2xl p-4 space-y-3">
-            <span className="text-[10px] uppercase tracking-[0.22em] block text-center" style={{ color: '#d4a359' }}>
-              Bereits im Kreis? Tippe auf deinen Namen:
+          <div className="glass-card rounded-2xl p-5 space-y-3.5">
+            <span className="label-mono is-accent block text-center">
+              Bereits im Kreis? Wähle deinen Namen
             </span>
             <div className="flex flex-wrap justify-center gap-2">
               {members.map(m => (
@@ -68,14 +71,16 @@ export default function JoinScreen({ members = [], onJoin }: Props) {
                   type="button"
                   disabled={loading}
                   onClick={() => handleSelectExisting(m)}
-                  className="px-4 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer active:scale-95"
-                  style={{
-                    background: 'rgba(212, 163, 89, 0.14)',
-                    border: '1px solid rgba(212, 163, 89, 0.4)',
-                    color: '#f2efe9',
-                  }}
+                  className="btn-ghost inline-flex items-center gap-2 pl-1.5 pr-3.5 py-1.5 rounded-full"
+                  style={{ color: '#f2efe9', letterSpacing: '0.04em', textTransform: 'none', fontSize: 13 }}
                 >
-                  {m.name} →
+                  <span
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-semibold"
+                    style={{ background: '#d4a359', color: '#120d04' }}
+                  >
+                    {m.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  {m.name}
                 </button>
               ))}
             </div>
@@ -83,25 +88,18 @@ export default function JoinScreen({ members = [], onJoin }: Props) {
         )}
 
         {/* New Member Input */}
-        <form onSubmit={handleCreateSubmit} className="glass-card rounded-2xl p-5 space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-[0.22em] block" style={{ color: '#7c766e' }}>
-              {members.length > 0 ? 'Oder neu beitreten als:' : 'Wie heißt du im Freundeskreis?'}
+        <form onSubmit={handleCreateSubmit} className="glass-card rounded-2xl p-6 space-y-4">
+          <div className="space-y-2">
+            <label className="label-mono block">
+              {members.length > 0 ? 'Oder neu beitreten als' : 'Wie heißt du im Freundeskreis?'}
             </label>
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="Dein Vorname / Spitzname..."
+              placeholder="Dein Vorname / Spitzname…"
               maxLength={24}
-              className="w-full px-4 py-3.5 rounded-xl text-base focus:outline-none transition-all"
-              style={{
-                background: 'rgba(0,0,0,0.4)',
-                border: name.trim()
-                  ? '1px solid rgba(212, 163, 89, 0.5)'
-                  : '1px solid rgba(255,255,255,0.1)',
-                color: '#f2efe9',
-              }}
+              className="input-field w-full px-4 py-3.5 rounded-xl text-base"
             />
           </div>
 
@@ -120,18 +118,14 @@ export default function JoinScreen({ members = [], onJoin }: Props) {
           <button
             type="submit"
             disabled={!name.trim() || loading}
-            className="w-full py-4 rounded-xl text-xs uppercase tracking-[0.22em] font-semibold transition-all cursor-pointer disabled:opacity-30"
-            style={{
-              background: name.trim() ? '#d4a359' : '#1b1b22',
-              color: name.trim() ? '#070709' : '#7c766e',
-            }}
+            className="btn-primary w-full py-4 rounded-xl"
           >
-            {loading ? 'Verbinde...' : 'Frequenz betreten ∿'}
+            {loading ? 'Verbinde…' : 'Frequenz betreten ∿'}
           </button>
         </form>
       </div>
 
-      <div className="text-center text-[10px] uppercase tracking-[0.25em]" style={{ color: '#45423e' }}>
+      <div className="label-mono text-center" style={{ color: '#55514b', letterSpacing: '0.28em' }}>
         Welle · Synchrones Freundschafts-Ritual
       </div>
     </div>

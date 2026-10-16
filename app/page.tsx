@@ -388,51 +388,58 @@ export default function Home() {
         <div className="flex-1 flex flex-col items-center justify-between px-5 pb-10 pt-4 max-w-md mx-auto w-full">
           <div className="w-full space-y-2">
             <WaveVisualizer variant="amber" intensity={0.8} height={56} />
-            <p className="text-center text-[11px] uppercase tracking-[0.25em]" style={{ color: '#d4a359' }}>
-              Warteraum · {members.length} von {EXPECTED_MEMBERS} Freunden bereit
+            <p className="label-mono is-accent text-center">
+              Warteraum · {members.length}/{EXPECTED_MEMBERS} Kanäle belegt
             </p>
           </div>
 
           <div className="my-auto py-8 w-full space-y-8 text-center animate-fade-up">
             <div className="space-y-3 px-3">
-              <span className="text-xs uppercase tracking-[0.2em]" style={{ color: '#d4a359' }}>
-                Welle #1 steht bereit
-              </span>
-              <h2 className="font-display text-3xl sm:text-4xl font-light leading-snug" style={{ color: '#f2efe9' }}>
-                Der Kreis formiert sich
+              <span className="label-mono is-accent">Welle Nº01 steht bereit</span>
+              <h2 className="title-display text-4xl sm:text-5xl">
+                Der Kreis <em>formiert</em> sich
               </h2>
-              <p className="text-xs leading-relaxed max-w-xs mx-auto" style={{ color: '#9c958c' }}>
-                Sobald alle {EXPECTED_MEMBERS} Freunde beigetreten sind, startet Welle #1 automatisch synchron für die gesamte Gruppe!
+              <p className="text-[13px] leading-relaxed max-w-xs mx-auto" style={{ color: '#9c958c' }}>
+                Sobald alle {EXPECTED_MEMBERS} Freunde beigetreten sind, startet Welle #1 automatisch synchron für die gesamte Gruppe.
               </p>
             </div>
 
-            {/* Member Orbs / Slots */}
+            {/* Signal channels */}
             <div className="grid grid-cols-2 gap-3 max-w-xs mx-auto w-full">
               {Array.from({ length: Math.max(EXPECTED_MEMBERS, members.length) }).map((_, idx) => {
                 const joined = members[idx]
                 return (
                   <div
                     key={idx}
-                    className="p-3.5 rounded-2xl flex flex-col items-center gap-2 transition-all duration-500"
+                    className="relative p-3.5 rounded-2xl flex flex-col items-center gap-2 transition-all duration-500"
                     style={{
-                      background: joined ? 'rgba(212, 163, 89, 0.12)' : 'rgba(255,255,255,0.02)',
+                      background: joined
+                        ? 'linear-gradient(160deg, rgba(212,163,89,0.16), rgba(18,18,22,0.9))'
+                        : 'rgba(255,255,255,0.02)',
                       border: joined
                         ? '1px solid rgba(212, 163, 89, 0.45)'
-                        : '1px dashed rgba(255,255,255,0.1)',
+                        : '1px dashed rgba(255,255,255,0.12)',
+                      boxShadow: joined ? '0 10px 30px -14px rgba(212,163,89,0.5)' : 'none',
                     }}
                   >
+                    <span
+                      className="label-mono absolute top-2 left-3"
+                      style={{ fontSize: 8.5, color: joined ? '#d4a359' : '#4a463f' }}
+                    >
+                      CH {String(idx + 1).padStart(2, '0')}
+                    </span>
                     <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold"
+                      className="mt-3 w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold"
                       style={{
-                        background: joined ? '#d4a359' : 'rgba(255,255,255,0.04)',
-                        color: joined ? '#070709' : '#5c564e',
-                        boxShadow: joined ? '0 0 16px rgba(212, 163, 89, 0.35)' : 'none',
+                        background: joined ? 'linear-gradient(180deg,#e6b96d,#c8913f)' : 'rgba(255,255,255,0.04)',
+                        color: joined ? '#120d04' : '#5c564e',
+                        boxShadow: joined ? '0 0 20px rgba(212, 163, 89, 0.4)' : 'none',
                       }}
                     >
-                      {joined ? joined.name.slice(0, 1).toUpperCase() : `${idx + 1}`}
+                      {joined ? joined.name.slice(0, 1).toUpperCase() : '·'}
                     </div>
                     <p className="text-xs font-medium truncate max-w-[100px]" style={{ color: joined ? '#f2efe9' : '#5c564e' }}>
-                      {joined ? joined.name : 'Offener Platz...'}
+                      {joined ? joined.name : 'Wartet auf Signal'}
                     </p>
                   </div>
                 )
@@ -444,7 +451,7 @@ export default function Home() {
               {members.length >= 2 && (
                 <button
                   onClick={handleStartWaveEarly}
-                  className="px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider font-semibold border border-[#d4a359]/40 text-[#d4a359] hover:bg-[#d4a359]/10 cursor-pointer transition-all"
+                  className="btn-ghost px-5 py-3 rounded-xl"
                 >
                   Schon jetzt mit {members.length} Spielern starten →
                 </button>
