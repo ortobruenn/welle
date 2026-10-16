@@ -10,11 +10,13 @@ import RevealScreen from '@/components/RevealScreen'
 import CooldownScreen from '@/components/CooldownScreen'
 import TopBar from '@/components/TopBar'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt'
+import WaveVisualizer from '@/components/WaveVisualizer'
 import { subscribeToPush } from '@/lib/pushClient'
 
 type AppState =
   | 'loading'
   | 'join'
+  | 'lobby'
   | 'wave'
   | 'waiting'
   | 'reveal'
@@ -22,6 +24,7 @@ type AppState =
   | 'cooldown'
 
 const COOLDOWN_MS = 10 * 1000 // 10s Schnelldurchlauf für aktives Gruppenspiel (anpassbar)
+const EXPECTED_MEMBERS = parseInt(process.env.NEXT_PUBLIC_TOTAL_MEMBERS || '4', 10) || 4
 
 export default function Home() {
   const [appState, setAppState] = useState<AppState>('loading')
@@ -40,9 +43,16 @@ export default function Home() {
 
     const memberList = (allMembers || []) as Member[]
     setMembers(memberList)
-    const targetMembersCount = Math.max(2, memberList.length)
+    const targetMembersCount = Math.max(EXPECTED_MEMBERS, memberList.length)
 
     if (!waves || waves.length === 0) {
+      // Wenn die Gruppe noch nicht vollzählig ist: Warteraum anzeigen!
+      if (memberList.length < EXPECTED_MEMBERS) {
+        setWave(null)
+        setAppState('lobby')
+        return
+      }
+
       if (!isGeneratingWaveRef.current) {
         isGeneratingWaveRef.current = true
         try {
@@ -60,7 +70,7 @@ export default function Home() {
         }
       }
       setWave(null)
-      setAppState('cooldown')
+      setAppState('loading')
       return
     }
 
@@ -326,6 +336,21 @@ export default function Home() {
     await loadAppState(member.id)
   }
 
+  const handleStartWaveEarly = async () => {
+    if (isGeneratingWaveRef.current) return
+    isGeneratingWaveRef.current = true
+    try {
+      await fetch('/api/generate-wave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true }),
+      })
+      if (member) await loadAppState(member.id)
+    } finally {
+      isGeneratingWaveRef.current = false
+    }
+  }
+
   if (appState === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -340,7 +365,7 @@ export default function Home() {
     return <JoinScreen members={members} onJoin={handleJoin} />
   }
 
-  const targetMembersCount = Math.max(2, members.length)
+  const targetMembersCount = Math.max(EXPECTED_MEMBERS, members.length)
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -356,6 +381,76 @@ export default function Home() {
         responses={responses}
         currentMember={member}
       />
+
+      {appState === 'lobby' && (
+        <div className="flex-1 flex flex-col items-center justify-between px-5 pb-10 pt-4 max-w-md mx-auto w-full">
+          <div className="w-full space-y-2">
+            <WaveVisualizer variant="amber" intensity={0.8} height={56} />
+            <p className="text-center text-[11px] uppercase tracking-[0.25em]" style={{ color: '#d4a359' }}>
+              Warteraum · {members.length} von {EXPECTED_MEMBERS} Freunden bereit
+            </p>
+          </div>
+
+          <div className="my-auto py-8 w-full space-y-8 text-center animate-fade-up">
+            <div className="space-y-3 px-3">
+              <span className="text-xs uppercase tracking-[0.2em]" style={{ color: '#d4a359' }}>
+                Welle #1 steht bereit
+              </span>
+              <h2 className="font-display text-3xl sm:text-4xl font-light leading-snug" style={{ color: '#f2efe9' }}>
+                Der Kreis formiert sich
+              </h2>
+              <p className="text-xs leading-relaxed max-w-xs mx-auto" style={{ color: '#9c958c' }}>
+                Sobald alle {EXPECTED_MEMBERS} Freunde beigetreten sind, startet Welle #1 automatisch synchron für die gesamte Gruppe!
+              </p>
+            </div>
+
+            {/* Member Orbs / Slots */}
+            <div className="grid grid-cols-2 gap-3 max-w-xs mx-auto w-full">
+              {Array.from({ length: Math.max(EXPECTED_MEMBERS, members.length) }).map((_, idx) => {
+                const joined = members[idx]
+                return (
+                  <div
+                    key={idx}
+                    className="p-3.5 rounded-2xl flex flex-col items-center gap-2 transition-all duration-500"
+                    style={{
+                      background: joined ? 'rgba(212, 163, 89, 0.12)' : 'rgba(255,255,255,0.02)',
+                      border: joined
+                        ? '1px solid rgba(212, 163, 89, 0.45)'
+                        : '1px dashed rgba(255,255,255,0.1)',
+                    }}
+                  >
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold"
+                      style={{
+                        background: joined ? '#d4a359' : 'rgba(255,255,255,0.04)',
+                        color: joined ? '#070709' : '#5c564e',
+                        boxShadow: joined ? '0 0 16px rgba(212, 163, 89, 0.35)' : 'none',
+                      }}
+                    >
+                      {joined ? joined.name.slice(0, 1).toUpperCase() : `${idx + 1}`}
+                    </div>
+                    <p className="text-xs font-medium truncate max-w-[100px]" style={{ color: joined ? '#f2efe9' : '#5c564e' }}>
+                      {joined ? joined.name : 'Offener Platz...'}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Early Start Button */}
+            <div className="pt-2 space-y-3">
+              {members.length >= 2 && (
+                <button
+                  onClick={handleStartWaveEarly}
+                  className="px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider font-semibold border border-[#d4a359]/40 text-[#d4a359] hover:bg-[#d4a359]/10 cursor-pointer transition-all"
+                >
+                  Schon jetzt mit {members.length} Spielern starten →
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {appState === 'wave' && wave && member && (
         <WaveScreen
