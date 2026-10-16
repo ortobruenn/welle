@@ -12,6 +12,7 @@ import {
   buildDeterministicNumberScramble,
   extractScrambleConfig,
   generateDynamicGlitchPrompt,
+  generateDynamicSpectrumPoles,
 } from '@/lib/mystery'
 import { sendPushToMembers } from '@/lib/pushServer'
 import type { CoreWaveType, LogicWaveConfig } from '@/lib/types'
@@ -218,6 +219,84 @@ export const CURATED_PROMPTS: CuratedPromptItem[] = [
     prompt_type: 'spectrum',
     options: ['Pyjama ist bereits mental gebucht', 'Pack die Tasche, ich bin in 5 Minuten da'],
   },
+  {
+    prompt: 'Wie steht es heute um deine Willenskraft bei Verlockungen?',
+    glitch_prompt: null,
+    prompt_type: 'spectrum',
+    options: ['Mönchische Selbstdisziplin', 'Wenn es essbar ist, existiert es gleich nicht mehr'],
+  },
+  {
+    prompt: 'Dein innerer Kontrollwahn in Gruppen-Situationen:',
+    glitch_prompt: null,
+    prompt_type: 'spectrum',
+    options: ['Ich gebe das Steuer komplett ab', 'Wenn ich nicht alles manage, bricht Anarchie aus'],
+  },
+  {
+    prompt: 'Wie gehst du heute mit unangenehmen Pflichten um?',
+    glitch_prompt: null,
+    prompt_type: 'spectrum',
+    options: ['Sofortige chirurgische Erledigung', 'Ich putze lieber die Fliesenfugen mit der Zahnbürste'],
+  },
+  {
+    prompt: 'Dein heutiger Ernsthaftigkeits-Pegel:',
+    glitch_prompt: null,
+    prompt_type: 'spectrum',
+    options: ['Tiefsinniger Philosoph mit Weltschmerz', 'Clownsfrühstück – heute wird nichts ernst genommen'],
+  },
+  {
+    prompt: 'Wie reagierst du, wenn ein fester Plan plötzlich ins Wasser fällt?',
+    glitch_prompt: null,
+    prompt_type: 'spectrum',
+    options: ['Innerer Weltuntergang & Schockstarre', 'Herrliches Chaos – jetzt wird es erst spannend'],
+  },
+  {
+    prompt: 'Dein Kommunikations-Tempo heute auf WhatsApp & Co.:',
+    glitch_prompt: null,
+    prompt_type: 'spectrum',
+    options: ['Funkstille & blaue Haken auf ewig', 'Antwortet in 0,3 Sekunden mit Voice-Memo-Podcast'],
+  },
+  {
+    prompt: 'Dein aktueller Zustand zwischen Vernunft und purer Gönnung:',
+    glitch_prompt: null,
+    prompt_type: 'spectrum',
+    options: ['Eiserner Sparfuchs & Minimalist', 'Kreditkarte glüht – man lebt nur einmal'],
+  },
+  {
+    prompt: 'Wie leicht lässt du dich heute von der Arbeit ablenken?',
+    glitch_prompt: null,
+    prompt_type: 'spectrum',
+    options: ['Tunnelblick eines Schweizer Uhrmachers', 'Guck mal, ein fliegendes Staubkorn!'],
+  },
+  {
+    prompt: 'Dein Morgen-Start heute:',
+    glitch_prompt: null,
+    prompt_type: 'spectrum',
+    options: ['Achtmal Snooze & Schlafwandeln', 'Ohne Wecker aus dem Bett katapultiert'],
+  },
+  {
+    prompt: 'Wie optimistisch blickst du auf die nächste Zeit?',
+    glitch_prompt: null,
+    prompt_type: 'spectrum',
+    options: ['Kritischer Realist mit Schutzhelm', 'Unerschütterliches Sonnenschein-Konto'],
+  },
+  {
+    prompt: 'Dein aktuelles Bedürfnis nach Natur vs. digitalem Bildschirm:',
+    glitch_prompt: null,
+    prompt_type: 'spectrum',
+    options: ['Einsame Waldhütte ohne Strom', 'Cyber-Matrix direkt auf die Netzhaut'],
+  },
+  {
+    prompt: 'Wie offen bist du heute für tiefgründige Seelengespräche?',
+    glitch_prompt: null,
+    prompt_type: 'spectrum',
+    options: ['Bloß oberflächlicher Wetter-Smalltalk', 'Lass uns über den Sinn der Existenz weinen'],
+  },
+  {
+    prompt: 'Dein heutiges Stress- und Puls-Barometer:',
+    glitch_prompt: null,
+    prompt_type: 'spectrum',
+    options: ['Tiefenentspannter Koala am Ast', 'Formel-1-Boxenstopp unter Volldampf'],
+  },
 
   // 4. 35s-BLINDFUNK (draw) – 35 Sekunden Tinten-Countdown auf dem Canvas
   {
@@ -420,6 +499,146 @@ const CURATED_LOGIC_RIDDLES: Array<{
       correctIndex: 1,
       explanation:
         'Wenn du die Person auf dem 2. Platz überholst, nimmst du deren 2. Platz ein – die Person auf Platz 1 läuft noch vor dir.',
+    },
+  },
+  {
+    prompt:
+      'Im Keller sind 3 Lichtschalter, oben im Dachboden 3 Glühbirnen. Wie viele Gänge nach oben brauchst du mindestens, um zweifelsfrei zuzuordnen, welcher Schalter zu welcher Birne gehört?',
+    config: {
+      choices: ['1 Gang', '2 Gänge', '3 Gänge', 'Unmöglich'],
+      correctIndex: 0,
+      explanation:
+        'Schalter 1 für 5 Minuten anlassen (Birne wird warm), dann ausschalten. Schalter 2 anmachen. Oben: Brennende Birne = 2, warme Birne = 1, kalte Birne = 3!',
+    },
+  },
+  {
+    prompt:
+      'Ein Frosch sitzt auf dem Grund eines 10m tiefen Brunnens. Tagsüber klettert er 3m nach oben, nachts rutscht er im Schlaf 2m ab. An welchem Tag ist er oben frei?',
+    config: {
+      choices: ['Am 8. Tag', 'Am 10. Tag', 'Am 7. Tag', 'Am 9. Tag'],
+      correctIndex: 0,
+      explanation:
+        'Nach 7 Tagen und Nächten ist er bei 7m. Am 8. Tag klettert er 3m, erreicht die 10m-Kante und ist frei, bevor er nachts abrutschen könnte!',
+    },
+  },
+  {
+    prompt:
+      'Ein Vater ist heute 4-mal so alt wie sein Sohn. In 20 Jahren wird er nur noch doppelt so alt sein. Wie alt ist der Sohn heute?',
+    config: {
+      choices: ['10 Jahre', '5 Jahre', '15 Jahre', '12 Jahre'],
+      correctIndex: 0,
+      explanation:
+        'Sohn 10, Vater 40. In 20 Jahren ist der Sohn 30 und der Vater 60 – also exakt doppelt so alt!',
+    },
+  },
+  {
+    prompt:
+      'Vor zwei Enten schwimmt eine Ente, hinter zwei Enten schwimmt eine Ente, und zwischen zwei Enten schwimmt eine Ente. Wie viele Enten sind es mindestens?',
+    config: {
+      choices: ['3 Enten', '5 Enten', '4 Enten', '6 Enten'],
+      correctIndex: 0,
+      explanation:
+        'Drei Enten hintereinander in einer Reihe erfüllen alle Bedingungen gleichzeitig!',
+    },
+  },
+  {
+    prompt:
+      'Ein Vater und sein Sohn haben einen Autounfall. Im Spital sagt der diensthabende Chirurg: „Ich kann ihn nicht operieren, er ist mein Sohn!“ Wer ist der Chirurg?',
+    config: {
+      choices: ['Die Mutter des Jungen', 'Sein Adoptivvater', 'Sein Großvater', 'Ein Zwillingsbruder'],
+      correctIndex: 0,
+      explanation:
+        'Klassischer kognitiver Bias: Der Chirurg ist die Mutter des Kindes.',
+    },
+  },
+  {
+    prompt:
+      'In einem Raum brennen 10 Kerzen. Ein Windstoß bläst 3 Kerzen aus. Später wird noch 1 Kerze ausgepustet. Wie viele Kerzen bleiben am nächsten Morgen übrig?',
+    config: {
+      choices: ['4 Kerzen', '6 Kerzen', '0 Kerzen', '10 Kerzen'],
+      correctIndex: 0,
+      explanation:
+        'Die 6 brennenden Kerzen brennen komplett ab. Nur die 4 ausgeblasenen Kerzen bleiben als physische Kerzen übrig!',
+    },
+  },
+  {
+    prompt:
+      'Zwei Züge fahren mit je 50 km/h aufeinander zu (Startabstand 100 km). Eine Fliege fliegt mit 80 km/h pausenlos zwischen den Zügen hin und her, bis sie kollidieren. Welche Gesamtstrecke fliegt die Fliege?',
+    config: {
+      choices: ['80 km', '100 km', '50 km', '160 km'],
+      correctIndex: 0,
+      explanation:
+        'Die Züge treffen sich nach exakt 1 Stunde (100 km geteilt durch 100 km/h Relativgeschwindigkeit). In dieser 1 Stunde fliegt die Fliege genau 80 km!',
+    },
+  },
+  {
+    prompt:
+      'Einige Monate haben 30 Tage, andere haben 31 Tage. Wie viele Monate haben 28 Tage?',
+    config: {
+      choices: ['Alle 12 Monate', 'Nur 1 Monat (Februar)', 'Kein Monat', 'Schaltjahre ausgenommen'],
+      correctIndex: 0,
+      explanation:
+        'Jeder der 12 Monate hat mindestens 28 Tage!',
+    },
+  },
+  {
+    prompt:
+      'Ein Arzt gibt dir 3 Tabletten mit der Anweisung: „Nimm alle 30 Minuten genau eine Tablette ein.“ Nach wie vielen Minuten sind alle Tabletten aufgebraucht?',
+    config: {
+      choices: ['60 Minuten', '90 Minuten', '30 Minuten', '120 Minuten'],
+      correctIndex: 0,
+      explanation:
+        'Die 1. Tablette nimmst du bei Minute 0, die 2. bei Minute 30, die 3. bei Minute 60. Gesamtdauer: 60 Minuten!',
+    },
+  },
+  {
+    prompt:
+      'In einer dunklen Schublade liegen 10 weiße und 10 schwarze Socken. Wie viele Socken musst du blind ziehen, um garantiert ein gleichfarbiges Paar zu haben?',
+    config: {
+      choices: ['3 Socken', '11 Socken', '2 Socken', '4 Socken'],
+      correctIndex: 0,
+      explanation:
+        'Schubfach-Prinzip: Da es nur 2 Farben gibt, hast du bei 3 gezogenen Socken garantiert mindestens 2 mit derselben Farbe!',
+    },
+  },
+  {
+    prompt:
+      'Ein Bauer muss einen Wolf, eine Ziege und einen Kohlkopf im Boot über einen Fluss bringen (max. 1 Passagier). Was muss er als Erstes hinüberbringen?',
+    config: {
+      choices: ['Die Ziege', 'Den Wolf', 'Den Kohlkopf', 'Egal'],
+      correctIndex: 0,
+      explanation:
+        'Der Wolf frisst keinen Kohl. Lässt er die Ziege mit dem Wolf oder dem Kohl allein, wird gefressen. Nur die Ziege kann als Erstes gefahrlos übersetzen!',
+    },
+  },
+  {
+    prompt:
+      'In wie viele Stücke kannst du einen runden Kuchen mit genau 3 geraden Messerschnitten maximal zerteilen?',
+    config: {
+      choices: ['8 Stücke', '6 Stücke', '7 Stücke', '9 Stücke'],
+      correctIndex: 0,
+      explanation:
+        'Zwei Schnitte im Kreuz ergeben 4 Stücke. Ein dritter, horizontaler Schnitt quer durch den Kuchen halbiert alle 4 und ergibt 8 Stücke!',
+    },
+  },
+  {
+    prompt:
+      'Wenn 1,5 Hühner in 1,5 Tagen 1,5 Eier legen – wie viele Eier legen dann 6 Hühner in 6 Tagen?',
+    config: {
+      choices: ['24 Eier', '6 Eier', '12 Eier', '18 Eier'],
+      correctIndex: 0,
+      explanation:
+        '1 Huhn legt in 1,5 Tagen 1 Ei, also 4 Eier in 6 Tagen. 6 Hühner legen in 6 Tagen: 6 × 4 = 24 Eier!',
+    },
+  },
+  {
+    prompt:
+      'Wie viele Äpfel kannst du auf völlig leeren Magen essen?',
+    config: {
+      choices: ['Genau 1 Apfel', 'So viele wie reinpassen', 'Keinen einzigen', '2 Äpfel'],
+      correctIndex: 0,
+      explanation:
+        'Nach dem ersten Bissen bzw. ersten Apfel ist dein Magen nicht mehr leer!',
     },
   },
 ]
@@ -670,9 +889,9 @@ ${
   WICHTIG: Die Anweisung muss spezifisch zur Frage passen und darf NIEMALS eine generische Standardphrase sein!
 - "options": null`
     : chosenFormat.type === 'spectrum'
-    ? `Erzeuge:
-- "prompt": Eine knackige Frage zum heutigen Zustand, Kopfgefühl oder Charakter-Pendel, inspiriert vom Stil der Gruppe.
-- "options": Genau 2 extrem bildhafte, gegensätzliche Pole als Array: ["Pol bei 0%", "Pol bei 100%"].
+    ? `Erzeuge ein brandneues, überraschendes Frequenz-Spektrum (Charakter- & Stimmungs-Pendel für die Freunde):
+- "prompt": Eine frische, bildhafte Frage zum heutigen Zustand, Kopfgefühl, Alltagswahnsinn, Entscheidungsmuster oder Lebensstil (max. 18 Wörter). Denk dir ein originelles Szenario aus!
+- "options": Genau 2 extrem bildhafte, humorvolle und pointierte Pole als Array: ["Linkes Extrem (0%)", "Rechtes Extrem (100%)"]. (z.B. ["Zen-Garten & glasklarer Fokus", "Tornado im Kopf & 37 Baustellen"]).
 - "glitch_prompt": null`
     : chosenFormat.type === 'memory'
     ? `Erzeuge:
@@ -680,8 +899,8 @@ ${
 - "options": null
 - "glitch_prompt": null`
     : chosenFormat.type === 'logic'
-    ? `Erzeuge eine wasserdichte, kurze Logik-Kopfnuss oder kognitive Fangfrage (max. 35 Wörter, in 35 Sekunden lösbar):
-- "prompt": Die präzise Rätsel- oder Logikfrage.
+    ? `Erzeuge eine wasserdichte, knackige Logik-Kopfnuss, kognitive Fangfrage oder Alltags-Denksportaufgabe (max. 35 Wörter, in 35 Sekunden lösbar):
+- "prompt": Die präzise, NEUE Rätsel- oder Logikfrage (denk dir jedes Mal ein völlig neues, originelles Szenario aus – z.B. mit Zahlen, Geschwindigkeiten, Wochentagen, Schaltern, Münzen, Verwandtschaftsverhältnissen, Kerzen oder Fangfragen).
 - "logic_choices": Array mit genau 4 kurzen Antwortmöglichkeiten ["Option A", "Option B", "Option C", "Option D"].
 - "correct_index": Zahl (0, 1, 2 oder 3) für die einzig logisch richtige Antwort.
 - "explanation": 1 prägnanter Satz, warum genau diese Antwort stimmt.`
@@ -803,8 +1022,22 @@ Antworte NUR als valides JSON:
 
   let finalOptions: string[] | null = Array.isArray(parsed.options) ? parsed.options : null
 
-  if (chosenFormat.type === 'spectrum' && (!finalOptions || finalOptions.length < 2)) {
-    finalOptions = ['0% Minimal-Modus', '100% Maximal-Ausschlag']
+  if (chosenFormat.type === 'spectrum') {
+    const rawOptions =
+      parsed.options ||
+      parsed.poles ||
+      parsed.spectrum_poles ||
+      parsed.spectrumPoles ||
+      parsed.labels ||
+      parsed.choices
+
+    if (Array.isArray(rawOptions) && rawOptions.length >= 2) {
+      const p0 = String(rawOptions[0]).replace(/^(0%|Pol\s*0%?|Minimal)\s*:?\s*/i, '').trim()
+      const p1 = String(rawOptions[1]).replace(/^(100%|Pol\s*100%?|Maximal)\s*:?\s*/i, '').trim()
+      finalOptions = [p0 || 'Minimal-Modus', p1 || 'Maximal-Ausschlag']
+    } else {
+      finalOptions = generateDynamicSpectrumPoles(parsed.prompt || '', nextNumber + Date.now())
+    }
   }
 
   if (chosenFormat.type === 'undercover' && memberList.length >= 2) {
@@ -828,25 +1061,57 @@ Antworte NUR als valides JSON:
   }
 
   if (chosenFormat.type === 'logic') {
-    if (
-      Array.isArray(parsed.logic_choices) &&
-      parsed.logic_choices.length >= 2 &&
-      typeof parsed.correct_index === 'number' &&
-      parsed.correct_index >= 0 &&
-      parsed.correct_index < parsed.logic_choices.length
-    ) {
+    const rawChoices =
+      parsed.logic_choices ||
+      parsed.choices ||
+      parsed.options ||
+      parsed.answers ||
+      parsed.logicChoices ||
+      parsed.selections
+
+    let parsedIndex: number | null = null
+    if (typeof parsed.correct_index === 'number') {
+      parsedIndex = parsed.correct_index
+    } else if (typeof parsed.correctIndex === 'number') {
+      parsedIndex = parsed.correctIndex
+    } else if (typeof parsed.correct === 'number') {
+      parsedIndex = parsed.correct
+    } else if (typeof parsed.correct_index === 'string') {
+      parsedIndex = parseInt(parsed.correct_index, 10)
+    } else if (typeof parsed.correctIndex === 'string') {
+      parsedIndex = parseInt(parsed.correctIndex, 10)
+    }
+
+    if (Array.isArray(rawChoices) && rawChoices.length >= 2) {
+      const choicesArr = rawChoices.slice(0, 4).map((c: any) => String(c).trim())
+
+      if (parsedIndex === null || isNaN(parsedIndex) || parsedIndex < 0 || parsedIndex >= choicesArr.length) {
+        const rawCorrect = String(parsed.correct_answer || parsed.correct || parsed.solution || '').trim()
+        const letterMatch = rawCorrect.match(/^[ABCD]$/i)
+        if (letterMatch) {
+          parsedIndex = letterMatch[0].toUpperCase().charCodeAt(0) - 65
+        } else {
+          const foundIdx = choicesArr.findIndex(c => c.toLowerCase() === rawCorrect.toLowerCase())
+          parsedIndex = foundIdx !== -1 ? foundIdx : 0
+        }
+      }
+
+      const validIndex = Math.max(0, Math.min(choicesArr.length - 1, parsedIndex || 0))
+      const explanation =
+        typeof parsed.explanation === 'string' && parsed.explanation.trim()
+          ? parsed.explanation.trim()
+          : 'Diese Antwort folgt zwingend aus der logischen Herleitung.'
+
       finalOptions = attachLogicConfigToOptions(null, {
-        choices: parsed.logic_choices.slice(0, 4).map((c: any) => String(c)),
-        correctIndex: parsed.correct_index,
-        explanation:
-          typeof parsed.explanation === 'string' && parsed.explanation.trim()
-            ? parsed.explanation.trim()
-            : 'Diese Antwort folgt zwingend aus den Hinweisen.',
+        choices: choicesArr,
+        correctIndex: validIndex,
+        explanation,
       })
     } else {
       const freshRiddles = CURATED_LOGIC_RIDDLES.filter(r => !pastPromptsSet.has(r.prompt))
       const rPool = freshRiddles.length > 0 ? freshRiddles : CURATED_LOGIC_RIDDLES
-      const chosenRiddle = rPool[nextNumber % rPool.length]
+      const pickIdx = Math.floor(Math.random() * rPool.length)
+      const chosenRiddle = rPool[pickIdx] || CURATED_LOGIC_RIDDLES[0]
       parsed.prompt = chosenRiddle.prompt
       finalOptions = attachLogicConfigToOptions(null, chosenRiddle.config)
     }

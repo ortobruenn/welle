@@ -128,6 +128,43 @@ export function generateDynamicGlitchPrompt(promptText: string = '', seed: numbe
   return dynamicMissions[idx]
 }
 
+export function generateDynamicSpectrumPoles(promptText: string = '', seed: number = Date.now()): [string, string] {
+  const dynamicPoleSets: Array<[string, string]> = [
+    ['0% Minimal-Notstrom', '100% Maximaler Tatendrang'],
+    ['Eremit im Zen-Kloster', 'Rampensau auf der Hauptbühne'],
+    ['Eiskalte Fakten & Excel', 'Reines Bauchgefühl & Chaos-Vertrauen'],
+    ['Pyjama mental schon angezogen', 'Schon mit einem Fuß vor der Tür'],
+    ['Geduldsfaden aus Spinnweben', 'Unerschütterlicher Fels in der Brandung'],
+    ['Völlige Tiefenentspannung', '37 Tabs offen & Notfall-Kaffee'],
+    ['Jedes Detail pedantisch durchgeplant', 'Wir schauen einfach, was passiert'],
+    ['Akute soziale Überdosis', 'Brauche dringend Menschen um mich'],
+    ['Extrem sparsam & vernünftig', 'Gönnung ohne Reue & Kreditkarte glüht'],
+    ['Absoluter Morgenmuffel', 'Um 6 Uhr früh schon die Welt gerettet'],
+    ['Verstand kontrolliert alles', 'Herz schlägt wild ohne Filter'],
+    ['Absolute Komfortzone', 'Mitten ins nächste Abenteuer'],
+  ]
+
+  const lower = promptText.toLowerCase()
+  if (lower.includes('energie') || lower.includes('akku') || lower.includes('müde') || lower.includes('wach')) {
+    return ['1% Notstrom & Bettdecke', '120% Espresso-Rausch & Überflieger']
+  }
+  if (lower.includes('kopf') || lower.includes('gedanken') || lower.includes('fokus')) {
+    return ['Zen-Garten & absolute Stille', 'Tornado im Kopf & 50 offene Baustellen']
+  }
+  if (lower.includes('sozial') || lower.includes('menschen') || lower.includes('party')) {
+    return ['Höhlenmensch – bitte nicht ansprechen', 'Bühne frei – wo steigt das Fest?!']
+  }
+  if (lower.includes('entscheidung') || lower.includes('plan')) {
+    return ['Pedantische Risikoanalyse', 'Münzwurf & Augen zu']
+  }
+  if (lower.includes('spontan')) {
+    return ['Terminkalender hermetisch abgeriegelt', 'In 5 Minuten abfahrtbereit']
+  }
+
+  const idx = Math.abs(Math.floor(seed)) % dynamicPoleSets.length
+  return dynamicPoleSets[idx]
+}
+
 // ---------------------------------------------------------------------------
 // LIVE REACTIONS (Sparks on Reveal Cards)
 // ---------------------------------------------------------------------------

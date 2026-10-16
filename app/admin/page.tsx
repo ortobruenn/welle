@@ -3,7 +3,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Wave, Member, CoreWaveType } from '@/lib/types'
-import { extractEcho, extractUndercover, attachUndercoverToOptions, generateDynamicGlitchPrompt } from '@/lib/mystery'
+import {
+  extractEcho,
+  extractUndercover,
+  attachUndercoverToOptions,
+  generateDynamicGlitchPrompt,
+  generateDynamicSpectrumPoles,
+} from '@/lib/mystery'
 
 const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE || 'admin'
 
@@ -100,7 +106,10 @@ export default function AdminPage() {
         .split('\n')
         .map(o => o.trim())
         .filter(Boolean)
-      options = parsed.length >= 2 ? parsed.slice(0, 2) : ['0% Minimal-Modus', '100% Maximal-Ausschlag']
+      options =
+        parsed.length >= 2
+          ? parsed.slice(0, 2)
+          : generateDynamicSpectrumPoles(newPrompt.trim(), Date.now())
     } else if (newType === 'undercover' && members.length >= 2) {
       const target = members[Math.floor(Math.random() * members.length)]
       options = attachUndercoverToOptions(
