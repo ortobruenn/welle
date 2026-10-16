@@ -1153,6 +1153,7 @@ async function fetchHistoryAndMembers() {
     supabase
       .from('waves')
       .select('id, number, prompt, prompt_type, options')
+      .gt('number', 0)
       .order('number', { ascending: false })
       .limit(30),
     supabase.from('members').select('id, name'),
@@ -1195,7 +1196,7 @@ export async function prepareWaveContent(
     const { data } = await supabase.from('waves').select('*').eq('id', waveId).single()
     waveToPrepare = data
   } else {
-    const { data } = await supabase.from('waves').select('*').order('number', { ascending: false }).limit(1)
+    const { data } = await supabase.from('waves').select('*').gt('number', 0).order('number', { ascending: false }).limit(1)
     waveToPrepare = data?.[0]
   }
 
@@ -1245,6 +1246,7 @@ export async function activateWaveInternal(
       const { data: latestActive } = await supabase
         .from('waves')
         .select('*')
+        .gt('number', 0)
         .order('number', { ascending: false })
         .limit(1)
 

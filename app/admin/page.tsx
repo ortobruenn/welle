@@ -10,6 +10,12 @@ import {
   generateDynamicGlitchPrompt,
   generateDynamicSpectrumPoles,
 } from '@/lib/mystery'
+import {
+  getAppConfig,
+  saveAppConfig,
+  formatCooldownDuration,
+  MAX_COOLDOWN_SECONDS,
+} from '@/lib/appConfig'
 
 const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE || 'admin'
 
@@ -24,6 +30,13 @@ export default function AdminPage() {
   const [waves, setWaves] = useState<WaveWithResponses[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(false)
+
+  // Countdown / Cooldown Konfiguration (bis max 24h)
+  const [cooldownSeconds, setCooldownSeconds] = useState(10)
+  const [customHours, setCustomHours] = useState(0)
+  const [customMinutes, setCustomMinutes] = useState(0)
+  const [customSeconds, setCustomSeconds] = useState(10)
+  const [cooldownSaveStatus, setCooldownSaveStatus] = useState('')
 
   const [newPrompt, setNewPrompt] = useState('')
   const [newType, setNewType] = useState<CoreWaveType>('text')
@@ -47,11 +60,17 @@ export default function AdminPage() {
   }
 
   const fetchData = useCallback(async () => {
-    const [wavesRes, membersRes] = await Promise.all([
-      supabase.from('waves').select('*').order('number', { ascending: false }),
+    const [wavesRes, membersRes, config] = await Promise.all([
+      supabase.from('waves').select('*').gt('number', 0).order('number', { ascending: false }),
       supabase.from('members').select('*').order('created_at', { ascending: true }),
+      getAppConfig(),
     ])
     const waveList = (wavesRes.data || []) as Wave[]
+
+    setCooldownSeconds(config.cooldownSeconds)
+    setCustomHours(Math.floor(config.cooldownSeconds / 3600))
+    setCustomMinutes(Math.floor((config.cooldownSeconds % 3600) / 60))
+    setCustomSeconds(config.cooldownSeconds % 60)
 
     const wavesWithCounts: WaveWithResponses[] = await Promise.all(
       waveList.map(async w => {
@@ -134,6 +153,36 @@ export default function AdminPage() {
     setNewType('text')
     await fetchData()
     setLoading(false)
+  }
+
+  const handleSaveCooldown = async (totalSec: number) => {
+    const clamped = Math.min(Math.max(totalSec, 5), MAX_COOLDOWN_SECONDS)
+    setCooldownSeconds(clamped)
+    setCustomHours(Math.floor(clamped / 3600))
+    setCustomMinutes(Math.floor((clamped % 3600) / 60))
+    setCustomSeconds(clamped % 60)
+    setCooldownSaveStatus('Speichere...')
+    try {
+      await saveAppConfig({ cooldownSeconds: clamped })
+      setCooldownSaveStatus('✓ Gespeichert')
+    } catch (e: any) {
+      setCooldownSaveStatus('Fehler beim Speichern')
+    }
+    setTimeout(() => setCooldownSaveStatus(''), 3500)
+  }
+
+  const handleRestartCurrentCooldown = async (sec: number) => {
+    const latestWave = waves[0]
+    if (!latestWave || latestWave.status !== 'cooldown') return
+    const nextDate = new Date(Date.now() + sec * 1000).toISOString()
+    await updateWaveStatus(latestWave.id, 'cooldown', { next_wave_at: nextDate })
+  }
+
+  const handleEndCooldownNow = async () => {
+    const latestWave = waves[0]
+    if (!latestWave || latestWave.status !== 'cooldown') return
+    await updateWaveStatus(latestWave.id, 'cooldown', { next_wave_at: new Date().toISOString() })
+    fetch('/api/generate-wave', { method: 'POST' }).catch(() => {})
   }
 
   const updateWaveStatus = async (waveId: string, status: Wave['status'], extra?: Partial<Wave>) => {
@@ -371,6 +420,195 @@ export default function AdminPage() {
         </div>
       </section>
 
+      {/* ⏱️ Countdown & Ruhephase-Konfiguration (bis max 24h) */}
+      <section className="glass-card rounded-2xl p-5 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h2 className="text-xs tracking-[0.22em] uppercase font-semibold" style={{ color: '#d4a359' }}>
+              ⏱️ Countdown / Ruhephase (Cooldown)
+            </h2>
+            <p className="text-[12px] text-[#9c958c] mt-0.5">
+              Dauer der Pause zwischen zwei Wellen bis zum nächsten Impuls (max. 24h).
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className="text-xs px-3 py-1 rounded-full font-mono font-medium"
+              style={{
+                background: 'rgba(212, 163, 89, 0.12)',
+                color: '#d4a359',
+                border: '1px solid rgba(212, 163, 89, 0.3)',
+              }}
+            >
+              Aktuell: {formatCooldownDuration(cooldownSeconds)}
+            </span>
+            {cooldownSaveStatus && (
+              <span className="text-xs text-[#49b882] animate-fade-in font-medium">
+                {cooldownSaveStatus}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Schnell-Auswahl Presets */}
+        <div className="space-y-2">
+          <label className="text-[11px] uppercase tracking-wider text-[#7c766e] block">
+            Schnell-Presets
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: '10s (Test)', sec: 10 },
+              { label: '1 Min', sec: 60 },
+              { label: '5 Min', sec: 300 },
+              { label: '15 Min', sec: 900 },
+              { label: '30 Min', sec: 1800 },
+              { label: '1 Std', sec: 3600 },
+              { label: '2 Std', sec: 7200 },
+              { label: '4 Std', sec: 14400 },
+              { label: '8 Std', sec: 28800 },
+              { label: '12 Std', sec: 43200 },
+              { label: '24 Std (Max)', sec: 86400 },
+            ].map(preset => {
+              const isActive = cooldownSeconds === preset.sec
+              return (
+                <button
+                  key={preset.sec}
+                  onClick={() => handleSaveCooldown(preset.sec)}
+                  disabled={loading}
+                  className="px-3 py-1.5 rounded-lg text-xs font-mono tracking-wider transition-all cursor-pointer"
+                  style={{
+                    border: isActive
+                      ? '1px solid #d4a359'
+                      : '1px solid rgba(255, 255, 255, 0.08)',
+                    background: isActive
+                      ? 'rgba(212, 163, 89, 0.15)'
+                      : 'rgba(255, 255, 255, 0.02)',
+                    color: isActive ? '#d4a359' : '#9c958c',
+                  }}
+                >
+                  {preset.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Eigene Zeit in Stunden & Minuten eingeben */}
+        <div className="space-y-2 pt-2 border-t border-white/5">
+          <label className="text-[11px] uppercase tracking-wider text-[#7c766e] block">
+            Benutzerdefinierte Zeit einstellen (max. 24h)
+          </label>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 bg-black/30 border border-white/10 rounded-xl px-3 py-2">
+              <input
+                type="number"
+                min={0}
+                max={24}
+                value={customHours}
+                onChange={e => {
+                  const val = Math.min(24, Math.max(0, parseInt(e.target.value, 10) || 0))
+                  setCustomHours(val)
+                }}
+                className="w-12 bg-transparent text-center text-sm font-mono text-[#f2efe9] focus:outline-none"
+              />
+              <span className="text-xs text-[#7c766e]">Std</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 bg-black/30 border border-white/10 rounded-xl px-3 py-2">
+              <input
+                type="number"
+                min={0}
+                max={59}
+                value={customMinutes}
+                onChange={e => {
+                  const val = Math.min(59, Math.max(0, parseInt(e.target.value, 10) || 0))
+                  setCustomMinutes(val)
+                }}
+                className="w-12 bg-transparent text-center text-sm font-mono text-[#f2efe9] focus:outline-none"
+              />
+              <span className="text-xs text-[#7c766e]">Min</span>
+            </div>
+
+            {customHours === 0 && customMinutes === 0 && (
+              <div className="flex items-center gap-1.5 bg-black/30 border border-white/10 rounded-xl px-3 py-2">
+                <input
+                  type="number"
+                  min={5}
+                  max={59}
+                  value={customSeconds}
+                  onChange={e => {
+                    const val = Math.min(59, Math.max(5, parseInt(e.target.value, 10) || 5))
+                    setCustomSeconds(val)
+                  }}
+                  className="w-12 bg-transparent text-center text-sm font-mono text-[#f2efe9] focus:outline-none"
+                />
+                <span className="text-xs text-[#7c766e]">Sek</span>
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                const totalSec =
+                  customHours * 3600 +
+                  customMinutes * 60 +
+                  (customHours === 0 && customMinutes === 0 ? customSeconds : 0)
+                handleSaveCooldown(totalSec)
+              }}
+              disabled={loading || (customHours === 0 && customMinutes === 0 && customSeconds < 5)}
+              className="px-4 py-2 rounded-xl text-xs uppercase tracking-wider font-semibold cursor-pointer disabled:opacity-40"
+              style={{ background: '#d4a359', color: '#070709' }}
+            >
+              Zeit speichern →
+            </button>
+          </div>
+        </div>
+
+        {/* Live-Steuerung für aktuell laufende Welle */}
+        {waves.length > 0 && waves[0].status === 'cooldown' && (
+          <div
+            className="p-4 rounded-xl border space-y-3"
+            style={{
+              background: 'rgba(212, 163, 89, 0.05)',
+              borderColor: 'rgba(212, 163, 89, 0.25)',
+            }}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] uppercase tracking-wider text-[#d4a359] block font-semibold">
+                  Aktuell: Welle #{waves[0].number} in Ruhephase
+                </span>
+                <span className="text-xs text-[#9c958c]">
+                  Endet regulär:{' '}
+                  {waves[0].next_wave_at
+                    ? `${new Date(waves[0].next_wave_at).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      })} Uhr`
+                    : 'sofort'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => handleRestartCurrentCooldown(cooldownSeconds)}
+                  disabled={loading}
+                  className="px-3 py-1.5 rounded-lg text-xs border border-[#d4a359]/40 text-[#d4a359] hover:bg-[#d4a359]/10 cursor-pointer"
+                >
+                  ⏱️ Auf {formatCooldownDuration(cooldownSeconds)} ab jetzt setzen
+                </button>
+                <button
+                  onClick={handleEndCooldownNow}
+                  disabled={loading}
+                  className="px-3 py-1.5 rounded-lg text-xs bg-[#49b882]/20 border border-[#49b882]/40 text-[#49b882] hover:bg-[#49b882]/30 cursor-pointer"
+                >
+                  ⚡ Countdown sofort beenden
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+
       {/* Manuelle Erstellung */}
       <section className="glass-card rounded-2xl p-5 space-y-4">
         <h2 className="text-xs tracking-[0.22em] uppercase" style={{ color: '#7c766e' }}>
@@ -517,7 +755,7 @@ export default function AdminPage() {
                 )}
                 {echo && <p className="text-xs italic text-[#9c958c]">∿ „{echo}“</p>}
 
-                <div className="flex gap-4 pt-1 text-xs">
+                <div className="flex gap-4 pt-1 text-xs items-center flex-wrap">
                   {w.status === 'active' && (
                     <button
                       onClick={() =>
@@ -525,14 +763,43 @@ export default function AdminPage() {
                           revealed_at: new Date().toISOString(),
                         })
                       }
-                      className="text-[#d4a359] cursor-pointer"
+                      className="text-[#d4a359] hover:underline cursor-pointer"
                     >
                       Sofort enthüllen →
                     </button>
                   )}
+                  {w.status === 'reveal' && (
+                    <button
+                      onClick={async () => {
+                        const nextDate = new Date(Date.now() + cooldownSeconds * 1000).toISOString()
+                        await updateWaveStatus(w.id, 'cooldown', { next_wave_at: nextDate })
+                      }}
+                      className="text-[#d4a359] hover:underline cursor-pointer"
+                    >
+                      In Ruhephase schicken ({formatCooldownDuration(cooldownSeconds)}) →
+                    </button>
+                  )}
+                  {w.status === 'cooldown' && (
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] text-[#9c958c]">
+                        {w.next_wave_at
+                          ? `Endet: ${new Date(w.next_wave_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+                          : 'Ruhephase aktiv'}
+                      </span>
+                      <button
+                        onClick={async () => {
+                          await updateWaveStatus(w.id, 'cooldown', { next_wave_at: new Date().toISOString() })
+                          fetch('/api/generate-wave', { method: 'POST' }).catch(() => {})
+                        }}
+                        className="text-[#49b882] hover:underline cursor-pointer font-medium"
+                      >
+                        Jetzt beenden & neue Welle starten →
+                      </button>
+                    </div>
+                  )}
                   <button
                     onClick={() => deleteWave(w.id)}
-                    className="text-[#7c766e] hover:text-red-400 cursor-pointer"
+                    className="text-[#7c766e] hover:text-red-400 cursor-pointer ml-auto"
                   >
                     Löschen
                   </button>

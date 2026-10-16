@@ -12,6 +12,7 @@ import TopBar from '@/components/TopBar'
 import PushNotificationPrompt from '@/components/PushNotificationPrompt'
 import WaveVisualizer from '@/components/WaveVisualizer'
 import { subscribeToPush } from '@/lib/pushClient'
+import { getAppConfig } from '@/lib/appConfig'
 
 type AppState =
   | 'loading'
@@ -23,7 +24,6 @@ type AppState =
   | 'waiting_cooldown'
   | 'cooldown'
 
-const COOLDOWN_MS = 10 * 1000 // 10s Schnelldurchlauf für aktives Gruppenspiel (anpassbar)
 const EXPECTED_MEMBERS = parseInt(process.env.NEXT_PUBLIC_TOTAL_MEMBERS || '4', 10) || 4
 
 export default function Home() {
@@ -37,7 +37,7 @@ export default function Home() {
 
   const loadAppState = useCallback(async (memberId: string) => {
     const [{ data: waves }, { data: allMembers }] = await Promise.all([
-      supabase.from('waves').select('*').order('number', { ascending: false }).limit(1),
+      supabase.from('waves').select('*').gt('number', 0).order('number', { ascending: false }).limit(1),
       supabase.from('members').select('*').order('created_at', { ascending: true }),
     ])
 
@@ -125,7 +125,9 @@ export default function Home() {
         // Sobald alle, die an dieser Welle teilgenommen haben, den Reveal gesehen haben -> Cooldown!
         const requiredSeen = Math.max(2, responseList.length)
         if (seenList.length >= requiredSeen) {
-          const nextWaveDate = new Date(Date.now() + COOLDOWN_MS).toISOString()
+          const config = await getAppConfig()
+          const cooldownMs = config.cooldownSeconds * 1000
+          const nextWaveDate = new Date(Date.now() + cooldownMs).toISOString()
           await supabase
             .from('waves')
             .update({ status: 'cooldown', next_wave_at: nextWaveDate })
