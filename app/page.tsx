@@ -166,7 +166,12 @@ export default function Home() {
           if (!isGeneratingWaveRef.current) {
             isGeneratingWaveRef.current = true
             try {
-              await fetch('/api/generate-wave', { method: 'POST' })
+              const res = await fetch('/api/generate-wave', { method: 'POST' })
+              const data = await res.json().catch(() => null)
+              // Neue Welle wird gerade (von jemand anderem) erzeugt -> kurz warten statt Dauerschleife
+              if (data && !data.deduplicated && (data.inProgress || data.success === false)) {
+                await new Promise(r => setTimeout(r, 800))
+              }
             } catch (e) {
               console.error('Auto next wave error:', e)
             } finally {

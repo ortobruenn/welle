@@ -791,6 +791,41 @@ function buildGroupMemoryContext(
     .join('\n\n')
 }
 
+const LOGIC_STYLES = [
+  'Zahlen- & Rechenfalle (Prozente, Durchschnitt, Preise, Zeitdauer – Intuition führt in die Irre)',
+  'Reihenfolge- & Platzierungsrätsel (wer sitzt/steht/kommt wo, Ränge, Warteschlangen)',
+  'Wochentage, Uhrzeiten & Kalender-Denksport',
+  'Wahrheits-/Lügen-Rätsel mit 2–3 Personen',
+  'Verwandtschafts- & Beziehungs-Logik',
+  'Wort-/Sprachfalle (Fangfrage mit überraschend simpler Auflösung)',
+  'Mengen- & Zähl-Falle (Gegenstände, Schritte, Gruppen, Überschneidungen)',
+  'Mustererkennung & Zahlenfolgen',
+]
+
+function promptTokens(text: string): Set<string> {
+  return new Set(
+    (text || '')
+      .toLowerCase()
+      .replace(/[^a-zäöüß0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(t => t.length > 3)
+  )
+}
+
+function isTooSimilar(candidate: string, pastPrompts: string[]): boolean {
+  const a = promptTokens(candidate)
+  if (a.size === 0) return false
+  return pastPrompts.some(past => {
+    const b = promptTokens(past)
+    if (b.size === 0) return false
+    let inter = 0
+    a.forEach(t => {
+      if (b.has(t)) inter++
+    })
+    return inter / (a.size + b.size - inter) >= 0.5
+  })
+}
+
 function parseAiJsonSafely(rawText: string): any | null {
   if (!rawText) return null
   const cleaned = rawText.replace(/```json/gi, '').replace(/```/g, '').trim()
@@ -849,7 +884,7 @@ export async function generateWaveContent(
   const pastSameFormatPrompts = (previousWaves || [])
     .filter(w => w.prompt_type === chosenFormat.type && typeof w.prompt === 'string')
     .map(w => `- "${w.prompt}"`)
-    .slice(0, 20)
+    .slice(0, 60)
 
   const forbiddenBlock =
     pastSameFormatPrompts.length > 0
@@ -900,7 +935,11 @@ ${
 - "glitch_prompt": null`
     : chosenFormat.type === 'logic'
     ? `Erzeuge eine wasserdichte, knackige Logik-Kopfnuss, kognitive Fangfrage oder Alltags-Denksportaufgabe (max. 35 Wörter, in 35 Sekunden lösbar):
-- "prompt": Die präzise, NEUE Rätsel- oder Logikfrage (denk dir jedes Mal ein völlig neues, originelles Szenario aus – z.B. mit Zahlen, Geschwindigkeiten, Wochentagen, Schaltern, Münzen, Verwandtschaftsverhältnissen, Kerzen oder Fangfragen).
+- RÄTSEL-STIL DIESER RUNDE (zwingend): ${LOGIC_STYLES[nextNumber % LOGIC_STYLES.length]}
+- GRUPPEN-BEZUG (zwingend): Verpacke das Rätsel in ein Szenario, das Themen, Orte, Vorlieben, Insider oder Running Gags aus den bisherigen Antworten dieser Gruppe aufgreift. Die Namen der Freunde (${memberNames}) dürfen als Rätselfiguren vorkommen, aber freundlich und ohne jemanden bloßzustellen.
+- SCHWIERIGKEIT: Orientiere dich am Kniffel-Ergebnis der letzten Logik-Runden: Haben fast alle gepatzt, mach es etwas leichter; haben alle gelöst, etwas fieser.
+- VERBOTEN: Die weltbekannten Klassiker (Schläger & Ball, Maschinen/Bauteile, Seerosen, Überholen im Rennen, Hahn-Ei, Schafe-alle-bis-auf-9, Henne etc.) und alles, was einer bereits gestellten Aufgabe ähnelt.
+- "prompt": Die präzise, NEUE, selbst erfundene Rätselfrage mit eindeutig lösbarer Antwort.
 - "logic_choices": Array mit genau 4 kurzen Antwortmöglichkeiten ["Option A", "Option B", "Option C", "Option D"].
 - "correct_index": Zahl (0, 1, 2 oder 3) für die einzig logisch richtige Antwort.
 - "explanation": 1 prägnanter Satz, warum genau diese Antwort stimmt.`
@@ -940,62 +979,79 @@ Antworte NUR als valides JSON:
   "hint": ${chosenFormat.type === 'scramble' ? '"..."' : 'null'}
 }`
 
+  const pastSamePrompts = (previousWaves || [])
+    .filter(w => w.prompt_type === chosenFormat.type && typeof w.prompt === 'string')
+    .map(w => w.prompt as string)
+
   let parsed: any = null
-
-  if (geminiApiKey && geminiApiKey.startsWith('AIza')) {
-    try {
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`
-      const response = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(25000),
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: systemPrompt }] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            temperature: 0.95,
-          },
-        }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-        parsed = parseAiJsonSafely(rawText)
-      }
-    } catch (e) {
-      console.warn('[Wave] Gemini call failed:', e)
-    }
-  }
-
-  if (!parsed || !parsed.prompt) {
-    try {
-      const res = await fetch('https://text.pollinations.ai/openai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(25000),
-        body: JSON.stringify({
-          model: 'openai',
-          seed: nextNumber * 137 + (Date.now() % 1000),
-          messages: [
-            {
-              role: 'system',
-              content:
-                'Du bist ein kreativer deutschsprachiger Spielleiter. Du antwortest ausschließlich mit validem JSON ohne Markdown-Formatierung.',
+  let promptText = systemPrompt
+  for (let attempt = 0; attempt < 2; attempt++) {
+    parsed = null
+    if (geminiApiKey && geminiApiKey.startsWith('AIza')) {
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`
+        const response = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(14000),
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptText }] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              temperature: 0.95,
             },
-            { role: 'user', content: systemPrompt },
-          ],
-          temperature: 0.95,
-          max_tokens: 450,
-        }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        const rawText = data?.choices?.[0]?.message?.content || ''
-        parsed = parseAiJsonSafely(rawText)
+          }),
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+          parsed = parseAiJsonSafely(rawText)
+        }
+      } catch (e) {
+        console.warn('[Wave] Gemini call failed:', e)
       }
-    } catch (e) {
-      console.warn('[Wave] Secondary AI fallback failed:', e)
+    }
+
+    if (!parsed || !parsed.prompt) {
+      try {
+        const res = await fetch('https://text.pollinations.ai/openai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(14000),
+          body: JSON.stringify({
+            model: 'openai',
+            seed: nextNumber * 137 + (Date.now() % 1000),
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'Du bist ein kreativer deutschsprachiger Spielleiter. Du antwortest ausschließlich mit validem JSON ohne Markdown-Formatierung.',
+              },
+              { role: 'user', content: promptText },
+            ],
+            temperature: 0.95,
+            max_tokens: 450,
+          }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          const rawText = data?.choices?.[0]?.message?.content || ''
+          parsed = parseAiJsonSafely(rawText)
+        }
+      } catch (e) {
+        console.warn('[Wave] Secondary AI fallback failed:', e)
+      }
+    }
+    if (
+      parsed &&
+      typeof parsed.prompt === 'string' &&
+      !isTooSimilar(parsed.prompt, pastSamePrompts)
+    ) {
+      break
+    }
+    if (parsed?.prompt) {
+      promptText = `${systemPrompt}\n\nDEIN LETZTER ENTWURF WAR ZU ÄHNLICH ZU EINER BEREITS GESTELLTEN AUFGABE: \"${parsed.prompt}\". Erfinde etwas inhaltlich völlig anderes.`
     }
   }
 
@@ -1005,7 +1061,8 @@ Antworte NUR als valides JSON:
     parsed &&
     typeof parsed.prompt === 'string' &&
     parsed.prompt.trim().length > 5 &&
-    !pastPromptsSet.has(parsed.prompt.trim())
+    !pastPromptsSet.has(parsed.prompt.trim()) &&
+    !isTooSimilar(parsed.prompt, pastSamePrompts)
   ) {
     parsed.prompt = parsed.prompt.trim()
     parsed.prompt_type = chosenFormat.type
@@ -1155,7 +1212,7 @@ async function fetchHistoryAndMembers() {
       .select('id, number, prompt, prompt_type, options')
       .gt('number', 0)
       .order('number', { ascending: false })
-      .limit(30),
+      .limit(100),
     supabase.from('members').select('id, name'),
   ])
 
@@ -1188,7 +1245,20 @@ async function fetchHistoryAndMembers() {
   return { previousWaves, members: members || [] }
 }
 
-export async function prepareWaveContent(
+const preparingWaves = new Map<string, Promise<any>>()
+
+export function prepareWaveContent(
+  waveId?: string
+): Promise<{ success: boolean; prepared?: boolean; alreadyPrepared?: boolean; wave?: any }> {
+  const key = waveId || '__latest__'
+  const running = preparingWaves.get(key)
+  if (running) return running
+  const p = prepareWaveContentUnsafe(waveId).finally(() => preparingWaves.delete(key))
+  preparingWaves.set(key, p)
+  return p
+}
+
+async function prepareWaveContentUnsafe(
   waveId?: string
 ): Promise<{ success: boolean; prepared?: boolean; alreadyPrepared?: boolean; wave?: any }> {
   let waveToPrepare: any = null
@@ -1256,27 +1326,30 @@ export async function activateWaveInternal(
           return { success: true, wave: topWave, deduplicated: true }
         }
 
-        if (topWave.status === 'cooldown' && topWave.next_wave_at) {
-          const isTimeUp = new Date(topWave.next_wave_at).getTime() <= Date.now()
-          if (!isTimeUp) {
-            return { success: false, message: 'Cooldown noch aktiv', wave: topWave }
-          }
+        // Nur ein abgelaufener Cooldown darf eine neue Welle auslösen.
+        // (Früher fiel z.B. der Status 'reveal' durch und startete mitten in der Welle eine neue!)
+        if (topWave.status !== 'cooldown' || !topWave.next_wave_at) {
+          return { success: false, message: 'Aktuelle Welle läuft noch', wave: topWave }
+        }
 
-          // Wichtig: KEIN Update auf next_wave_at (+12s), damit der Cooldown-Counter
-          // im Frontend niemals von 00:00:00 wieder auf 00:00:11 hochspringt!
-          const alreadyClaimed = Array.isArray(topWave.options)
-            ? topWave.options.includes('__activating_wave__')
-            : false
-          if (alreadyClaimed) {
-            return { success: true, wave: topWave, inProgress: true }
-          }
+        const isTimeUp = new Date(topWave.next_wave_at).getTime() <= Date.now()
+        if (!isTimeUp) {
+          return { success: false, message: 'Cooldown noch aktiv', wave: topWave }
+        }
 
-          const claimOptions = [...(topWave.options || []), '__activating_wave__']
-          await supabase
-            .from('waves')
-            .update({ options: claimOptions })
-            .eq('id', topWave.id)
-            .eq('status', 'cooldown')
+        // Atomarer Claim: Nur genau EIN paralleler Aufruf (auch über mehrere Serverless-
+        // Instanzen hinweg) gewinnt. next_wave_at wird nur auf "jetzt" gesetzt (liegt
+        // bereits in der Vergangenheit), der Counter springt also nicht zurück.
+        const { data: claimed } = await supabase
+          .from('waves')
+          .update({ next_wave_at: new Date().toISOString() })
+          .eq('id', topWave.id)
+          .eq('status', 'cooldown')
+          .eq('next_wave_at', topWave.next_wave_at)
+          .select('id')
+
+        if (!claimed || claimed.length === 0) {
+          return { success: true, wave: topWave, inProgress: true }
         }
       }
     }
@@ -1287,6 +1360,21 @@ export async function activateWaveInternal(
       previousWaves && previousWaves.length > 0
         ? Math.max(...previousWaves.map(w => w.number)) + 1
         : 1
+
+    // Läuft die Vorbereitung dieser Welle gerade noch, darauf warten statt parallel
+    // ein zweites Mal (langsam) zu generieren.
+    if (topWave && !force) {
+      const inFlight = preparingWaves.get(topWave.id)
+      if (inFlight) {
+        await inFlight.catch(() => null)
+        const { data: refreshed } = await supabase
+          .from('waves')
+          .select('*')
+          .eq('id', topWave.id)
+          .single()
+        if (refreshed) topWave = refreshed
+      }
+    }
 
     const cachedPrepared = topWave ? extractPreparedWave(topWave.options) : null
     const allowedFormats = computeAllowedFormats(previousWaves)
@@ -1324,6 +1412,18 @@ export async function activateWaveInternal(
         : content.prompt_type === 'photo'
         ? '📸 Live-Schnappschuss'
         : '🔒 Blind-Beichte'
+
+    if (!force) {
+      const { data: latestNow } = await supabase
+        .from('waves')
+        .select('*')
+        .gt('number', 0)
+        .order('number', { ascending: false })
+        .limit(1)
+      if (latestNow?.[0] && latestNow[0].number >= nextNumber) {
+        return { success: true, wave: latestNow[0], deduplicated: true }
+      }
+    }
 
     const [insertResult] = await Promise.all([
       supabase

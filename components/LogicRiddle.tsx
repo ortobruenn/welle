@@ -11,9 +11,11 @@ interface Props {
 }
 
 const LOGIC_LIMIT_MS = 35000 // 35s Denkzeit
+const READ_SECONDS = 12 // Lesezeit vor Aufdecken der Antworten
 
 export default function LogicRiddle({ config, onSubmit, disabled }: Props) {
   const [hasStarted, setHasStarted] = useState(false)
+  const [readLeft, setReadLeft] = useState(READ_SECONDS)
   const [leftMs, setLeftMs] = useState(LOGIC_LIMIT_MS)
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
   const [resultState, setResultState] = useState<{
@@ -24,6 +26,21 @@ export default function LogicRiddle({ config, onSubmit, disabled }: Props) {
 
   const startRef = useRef<number>(0)
   const submittedRef = useRef(false)
+
+  useEffect(() => {
+    if (hasStarted || disabled) return
+    const t = setInterval(() => {
+      setReadLeft((r) => {
+        if (r <= 1) {
+          clearInterval(t)
+          setHasStarted(true)
+          return 0
+        }
+        return r - 1
+      })
+    }, 1000)
+    return () => clearInterval(t)
+  }, [hasStarted, disabled])
 
   useEffect(() => {
     if (!hasStarted) return
@@ -87,14 +104,17 @@ export default function LogicRiddle({ config, onSubmit, disabled }: Props) {
         <div className="w-12 h-12 rounded-2xl mx-auto flex items-center justify-center text-2xl bg-[#d4a359]/15 border border-[#d4a359]/30">
           🧩
         </div>
+        <div className="font-mono text-5xl font-semibold tabular-nums" style={{ color: readLeft <= 3 ? '#e05a47' : '#d4a359' }}>
+          {readLeft}
+        </div>
         <div className="space-y-2">
           <h3 className="font-display text-2xl font-medium" style={{ color: '#f2efe9' }}>
             Bereit für die Logik-Falle?
           </h3>
           <p className="text-xs leading-relaxed" style={{ color: '#9c958c' }}>
-            Lies die Frage oben genau durch. Sobald du startest, werden die 4 Antwortmöglichkeiten
-            aufgedeckt und deine persönlichen <strong>35 Sekunden</strong> laufen. Du hast genau{' '}
-            <strong>1 Versuch</strong>!
+            Lies die Frage oben genau durch. Nach <strong>{READ_SECONDS} Sekunden</strong> werden
+            die 4 Antwortmöglichkeiten aufgedeckt und deine <strong>35 Sekunden</strong> laufen.
+            Du hast genau <strong>1 Versuch</strong>!
           </p>
         </div>
         <button
@@ -108,7 +128,7 @@ export default function LogicRiddle({ config, onSubmit, disabled }: Props) {
             boxShadow: '0 10px 28px -8px rgba(212, 163, 89, 0.55)',
           }}
         >
-          Antworten aufdecken & 35s starten ⚡
+          Jetzt aufdecken ({readLeft}s) ⚡
         </button>
       </div>
     )
