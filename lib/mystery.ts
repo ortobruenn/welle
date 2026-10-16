@@ -94,6 +94,40 @@ export function attachUndercoverToOptions(
 
 export const attachGlitchToOptions = attachUndercoverToOptions
 
+export function generateDynamicGlitchPrompt(promptText: string = '', seed: number = Date.now()): string {
+  const dynamicMissions = [
+    'Behaupte felsenfest das genaue Gegenteil deiner echten Meinung, aber begründe es mit verblüffender Ruhe!',
+    'Schmuggle unauffällig eine völlig absurde persönliche Marotte ein und verkaufe sie als das Normalste der Welt!',
+    'Baue beiläufig ein maßlos übertriebenes oder frei erfundenes Detail ein, ohne dass es sofort auffliegt!',
+    'Formuliere deine Antwort mit geschwollener Pseudo-Weisheit, als wärst du ein weltfremder Guru!',
+    'Verteidige eine offensichtlich fragwürdige Ansicht so charmant und leidenschaftlich, dass die anderen ins Grübeln geraten!',
+    'Gib eine Antwort ab, die auf den ersten Blick seriös klingt, bei genauem Hinhören aber herrlich schräg ist!',
+    'Schmuggle ein völlig deplatziertes Alltags-Element oder ein unpassendes Tier als Schlüsselargument ein!',
+    'Erfinde eine angebliche wissenschaftliche Studie oder Weisheit deiner Großmutter zur unanfechtbaren Untermauerung!',
+    'Beantworte die Frage mit maximalem Ernst, aber verpacke ein subtiles Tabu als den einzig logischen Weg!',
+    'Tarne deine Antwort wie einen geheimen Insider-Tipp aus dubiosen Quellen!',
+    'Lobe eine extrem nervige Sache über den grünen Klee, als hätte sie dein Leben gerettet!',
+    'Schreibe so, als wärst du ein arroganter Kunstkritiker, der über die Frage doziert!',
+    'Erfinde eine haarsträubende Anekdote, die angeblich deinem Cousin dritten Grades passiert ist!',
+    'Schlage eine sozial höchst fragwürdige Lösung vor, aber tarne sie als die reinste Form von Effizienz!',
+  ]
+
+  const lower = promptText.toLowerCase()
+  if (lower.includes('essen') || lower.includes('gericht') || lower.includes('küche')) {
+    dynamicMissions.push(
+      'Nenne eine kulinarisch völlig abwegige Kombination, aber verteidige sie wie ein Sternekoch!'
+    )
+  }
+  if (lower.includes('geld') || lower.includes('kauf') || lower.includes('invest')) {
+    dynamicMissions.push(
+      'Verkaufe einen völlig nutzlosen Gegenstand als die beste Investition deines Lebens!'
+    )
+  }
+
+  const idx = Math.abs(Math.floor(seed)) % dynamicMissions.length
+  return dynamicMissions[idx]
+}
+
 // ---------------------------------------------------------------------------
 // LIVE REACTIONS (Sparks on Reveal Cards)
 // ---------------------------------------------------------------------------

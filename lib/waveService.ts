@@ -11,6 +11,7 @@ import {
   buildDeterministicWordScramble,
   buildDeterministicNumberScramble,
   extractScrambleConfig,
+  generateDynamicGlitchPrompt,
 } from '@/lib/mystery'
 import { sendPushToMembers } from '@/lib/pushServer'
 import type { CoreWaveType, LogicWaveConfig } from '@/lib/types'
@@ -116,6 +117,66 @@ export const CURATED_PROMPTS: CuratedPromptItem[] = [
   {
     prompt: 'Was war dein bisher bester Kauf in diesem Jahr?',
     glitch_prompt: 'Erfinde einen völlig nutzlosen Impulskauf oder lobe einen Alltagsgegenstand so übertrieben, als hätte er dein Leben gerettet!',
+    prompt_type: 'undercover',
+    options: null,
+  },
+  {
+    prompt: 'Was ist für dich das größte No-Go bei einer privaten Einladung?',
+    glitch_prompt: 'Erwähne beiläufig eine absurde persönliche Marotte und tue so, als wäre das eine elementare Knigge-Regel!',
+    prompt_type: 'undercover',
+    options: null,
+  },
+  {
+    prompt: 'Welche Superkraft wäre im normalen Alltag insgeheim am nützlichsten?',
+    glitch_prompt: 'Wähle eine völlig banale, fast nutzlose Fähigkeit, aber feiere sie mit epochalem Ernst als ultimative Geheimwaffe!',
+    prompt_type: 'undercover',
+    options: null,
+  },
+  {
+    prompt: 'Wenn du eine neue Steuer erfinden dürftest: Worauf würde sie erhoben werden?',
+    glitch_prompt: 'Besteuere eine ganz normale Sache, die absolut jeder ständig tut, und stelle es als Rettung der Menschheit dar!',
+    prompt_type: 'undercover',
+    options: null,
+  },
+  {
+    prompt: 'Welcher Film oder welches Lied wird deiner Meinung nach völlig überbewertet?',
+    glitch_prompt: 'Zerreiß einen allgemein geliebten Klassiker mit einer völlig haarsträubenden, frei erfundenen Pseudobegründung!',
+    prompt_type: 'undercover',
+    options: null,
+  },
+  {
+    prompt: 'Was darf auf einer legendären Party unter Freunden auf keinen Fall fehlen?',
+    glitch_prompt: 'Schmuggle ein völlig unpassendes, spießiges Element ein und tue so, als wäre es der Stimmungsmacher #1!',
+    prompt_type: 'undercover',
+    options: null,
+  },
+  {
+    prompt: 'Was ist dein persönliches Guilty Pleasure, zu dem du trotzdem stehst?',
+    glitch_prompt: 'Erfinde eine Angewohnheit, die klingt wie die eines 85-jährigen Kleingärtners, und verteidige sie als avantgardistischen Lifestyle!',
+    prompt_type: 'undercover',
+    options: null,
+  },
+  {
+    prompt: 'Wenn wir alle zusammen ein Start-up gründen würden: Was wäre unser Produkt?',
+    glitch_prompt: 'Pitche eine völlig absurde Geschäftsidee mit so viel Startup-Bullshit-Bingo, dass es fast finanzierungsreif wirkt!',
+    prompt_type: 'undercover',
+    options: null,
+  },
+  {
+    prompt: 'Was war der seltsamste Ratschlag, den dir jemals jemand im Leben gegeben hat?',
+    glitch_prompt: 'Erfinde einen Ratschlag, der absolut keinen logischen Sinn ergibt, und behaupte todernst, er habe dein Leben verändert!',
+    prompt_type: 'undercover',
+    options: null,
+  },
+  {
+    prompt: 'Welche Modeerscheinung oder Trend sollte sofort für immer verboten werden?',
+    glitch_prompt: 'Attackiere leidenschaftlich einen Trend, den du in Wirklichkeit heimlich selbst feierst, ohne dich zu verraten!',
+    prompt_type: 'undercover',
+    options: null,
+  },
+  {
+    prompt: 'Was ist das erste Ding, das du bei einem Wohnungsbrand (nach Lebewesen) retten würdest?',
+    glitch_prompt: 'Rette einen völlig bizarren, wertlosen Gegenstand und liefere eine rührend sentimentale Pseudo-Story dazu!',
     prompt_type: 'undercover',
     options: null,
   },
@@ -603,8 +664,10 @@ GEFORDERTES FORMAT: "${chosenFormat.type}" (${chosenFormat.desc})
 ${
   chosenFormat.type === 'undercover'
     ? `Erzeuge:
-- "prompt": Eine spannende, unverdächtige Alltags- oder Meinungsfrage für die Gruppe, passend zu ihrem bisherigen Vibe.
-- "glitch_prompt": Eine konkrete, witzige Geheim-Anweisung für den Maulwurf (1 Satz, direkt per "Du" formuliert), wie er seine Antwort subtil sabotieren oder in eine bestimmte schräge Richtung lenken soll, ohne aufzufliegen.
+- "prompt": Eine spannende, unverdächtige Alltags- oder Meinungsfrage für die Gruppe (z.B. Gewohnheiten, Traumreisen, Peinlichkeiten, beste Erfindungen, moralische Zwickmühlen).
+- "glitch_prompt": Eine konkrete, extrem witzige Geheim-Anweisung für den Maulwurf (1 prägnanter Satz, direkt per "Du" formuliert), die PERFEKT und spezifisch auf deine obige Frage abgestimmt ist!
+  Wähle je nach Frage einen anderen Sabotage-Stil (z.B. das genaue Gegenteil behaupten; eine absurde persönliche Marotte einbauen; eine erfundene Anekdote beiläufig erwähnen; eine banale Kleinigkeit als weltbewegend darstellen; ein unpassendes Tier/Objekt als Argument nutzen).
+  WICHTIG: Die Anweisung muss spezifisch zur Frage passen und darf NIEMALS eine generische Standardphrase sein!
 - "options": null`
     : chosenFormat.type === 'spectrum'
     ? `Erzeuge:
@@ -666,7 +729,7 @@ Antworte NUR als valides JSON:
       const response = await fetch(geminiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(25000),
         body: JSON.stringify({
           contents: [{ parts: [{ text: systemPrompt }] }],
           generationConfig: {
@@ -691,7 +754,7 @@ Antworte NUR als valides JSON:
       const res = await fetch('https://text.pollinations.ai/openai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(25000),
         body: JSON.stringify({
           model: 'openai',
           seed: nextNumber * 137 + (Date.now() % 1000),
@@ -704,6 +767,7 @@ Antworte NUR als valides JSON:
             { role: 'user', content: systemPrompt },
           ],
           temperature: 0.95,
+          max_tokens: 450,
         }),
       })
       if (res.ok) {
@@ -731,8 +795,9 @@ Antworte NUR als valides JSON:
     const pool = CURATED_PROMPTS.filter(p => p.prompt_type === chosenFormat.type)
     const freshPool = pool.filter(p => !pastPromptsSet.has(p.prompt))
     const selectedPool = freshPool.length > 0 ? freshPool : pool
+    const pickIdx = Math.floor(Math.random() * selectedPool.length)
     parsed = {
-      ...(selectedPool[nextNumber % selectedPool.length] || CURATED_PROMPTS[0]),
+      ...(selectedPool[pickIdx] || CURATED_PROMPTS[0]),
     }
   }
 
@@ -743,9 +808,21 @@ Antworte NUR als valides JSON:
   }
 
   if (chosenFormat.type === 'undercover' && memberList.length >= 2) {
-    const undercoverPrompt =
+    const aiGlitch =
       parsed.glitch_prompt ||
-      'Schmuggle eine charmante Notlüge oder das genaue Gegenteil deiner echten Meinung ein – aber tarne dich perfekt!'
+      parsed.glitchPrompt ||
+      parsed.sabotage ||
+      parsed.sabotage_instruction ||
+      parsed.mission ||
+      parsed.undercover_prompt ||
+      parsed.undercoverPrompt ||
+      parsed.glitch
+
+    const undercoverPrompt =
+      typeof aiGlitch === 'string' && aiGlitch.trim().length > 10
+        ? aiGlitch.trim()
+        : generateDynamicGlitchPrompt(parsed.prompt || '', nextNumber + Date.now())
+
     const luckyMember = memberList[Math.floor(Math.random() * memberList.length)]
     finalOptions = attachUndercoverToOptions(null, luckyMember.id, luckyMember.name, undercoverPrompt)
   }

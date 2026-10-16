@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Wave, Member, CoreWaveType } from '@/lib/types'
-import { extractEcho, extractUndercover, attachUndercoverToOptions } from '@/lib/mystery'
+import { extractEcho, extractUndercover, attachUndercoverToOptions, generateDynamicGlitchPrompt } from '@/lib/mystery'
 
 const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE || 'admin'
 
@@ -108,7 +108,7 @@ export default function AdminPage() {
         target.id,
         target.name,
         newOptions.trim() ||
-          'Schmuggle eine charmante Notlüge oder das genaue Gegenteil deiner echten Meinung ein – ohne aufzufliegen!'
+          generateDynamicGlitchPrompt(newPrompt.trim(), Date.now())
       )
     }
 

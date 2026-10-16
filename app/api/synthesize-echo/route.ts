@@ -16,6 +16,8 @@ const geminiApiKey = process.env.GEMINI_API_KEY || ''
 
 const supabase = createClient(supabaseUrl, supabaseKey)
 
+export const maxDuration = 60
+
 function buildDynamicFallbackEcho(
   wave: any,
   responseList: Array<{ content: string; member_id: string; members?: { name?: string } }>
@@ -53,11 +55,34 @@ function buildDynamicFallbackEcho(
   }
 
   if (wave.prompt_type === 'draw') {
-    return `35 Sekunden, ein leerer Screen und ${responseList.length} völlig eigene Kunstwerke – man erkennt euren Strich sofort.`
+    const rawPrompt = (wave.prompt || 'eure Vision').trim()
+    const cleanTopic = rawPrompt
+      .replace(/^(Zeichne|Skizziere)\s+(in\s+35\s+Sekunden\s+)?/i, '')
+      .replace(/[.!?]+$/, '')
+      .trim()
+    const count = responseList.length
+    const templates = [
+      `35 Sekunden Zeitdruck auf leerer Leinwand: Zu „${cleanTopic}“ schwankt die Runde heute virtuos zwischen minimalistischer Meisterleistung und herrlich abstraktem Notfall-Gekritzel.`,
+      `Von genialer Reduktion bis zum absoluten Picasso-Moment – ${count} völlig eigene Interpretationen zu „${cleanTopic}“, die man sofort wiedererkennen würde.`,
+      `Wenn der 35-Sekunden-Timer tickt, zeigt sich der wahre Zeichenstil: Bei „${cleanTopic}“ hat jeder von euch einen komplett anderen Nerv getroffen.`,
+      `Zwischen schnellen Strichen und mutiger Abstraktion: Zu „${cleanTopic}“ beweist die Runde heute wieder ganz besondere künstlerische Reflexe.`,
+      `${count} Interpretationen, 35 Sekunden Panik oder Genie: Wie unterschiedlich man „${cleanTopic}“ auf den Screen bannen kann, ist heute Kunst für sich.`,
+      `Ein Thema („${cleanTopic}“), ${count} Kunstwerke – und wie immer der Beweis, dass unter Zeitdruck die besten und skurrilsten Ideen entstehen.`,
+    ]
+    const seed = (Math.abs(Number(wave.number) || 0) * 7 + count) % templates.length
+    return templates[seed]
   }
 
   if (wave.prompt_type === 'photo') {
-    return `${responseList.length} ungefilterte Blickwinkel aus demselben Moment – jeder sieht heute eine andere Welt.`
+    const rawPrompt = (wave.prompt || 'den Moment').trim().replace(/[.!?]+$/, '')
+    const count = responseList.length
+    const photoTemplates = [
+      `${count} ungefilterte Blickwinkel aus demselben Moment: Zu „${rawPrompt}“ sieht heute jeder eine andere Welt.`,
+      `Spontane Schnappschüsse, null Inszenierung: Bei „${rawPrompt}“ fängt die Runde die ehrlichsten Momentaufnahmen des Tages ein.`,
+      `${count} Live-Eindrücke zu „${rawPrompt}“ – herrlich ungestellt und direkt aus dem echten Leben gegriffen.`,
+    ]
+    const seed = (Math.abs(Number(wave.number) || 0) * 5 + count) % photoTemplates.length
+    return photoTemplates[seed]
   }
 
   // Text / Undercover: Zitiere echte Fragmente aus den Antworten!
@@ -77,14 +102,15 @@ function buildDynamicFallbackEcho(
 }
 
 async function generateAIEcho(systemPrompt: string): Promise<string | null> {
-  // 1. Primär: Google Gemini API (wenn ein gültiger AIza... Key hinterlegt ist)
-  if (geminiApiKey && geminiApiKey.startsWith('AIza')) {
+  // 1. Primär: Google Gemini API (wenn ein Key hinterlegt ist)
+  if (geminiApiKey) {
     for (const model of ['gemini-2.5-flash', 'gemini-2.0-flash']) {
       try {
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`
         const res = await fetch(geminiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(10000),
           body: JSON.stringify({
             contents: [{ parts: [{ text: systemPrompt }] }],
             generationConfig: { temperature: 0.85 },
@@ -97,18 +123,11 @@ async function generateAIEcho(systemPrompt: string): Promise<string | null> {
           if (text) {
             return text.replace(/^["„“]/, '').replace(/["„“]$/, '').trim()
           }
-        } else {
-          const errText = await res.text().catch(() => '')
-          console.warn(`[Echo] Gemini (${model}) HTTP ${res.status}:`, errText.slice(0, 200))
         }
       } catch (err) {
-        console.warn(`[Echo] Gemini (${model}) error:`, err)
+        // Fall through to secondary AI
       }
     }
-  } else if (geminiApiKey) {
-    console.warn(
-      '[Echo] Hinweis: GEMINI_API_KEY in .env.local beginnt nicht mit "AIza" (ungültiges Google AI Studio Key-Format). Nutze KI-Fallback.'
-    )
   }
 
   // 2. Automatischer KI-Fallback (OpenAI-kompatibler Endpunkt via Pollinations Text AI)
@@ -116,6 +135,7 @@ async function generateAIEcho(systemPrompt: string): Promise<string | null> {
     const res = await fetch('https://text.pollinations.ai/openai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(25000),
       body: JSON.stringify({
         model: 'openai',
         messages: [
@@ -127,6 +147,7 @@ async function generateAIEcho(systemPrompt: string): Promise<string | null> {
           { role: 'user', content: systemPrompt },
         ],
         temperature: 0.85,
+        max_tokens: 180,
       }),
     })
 
@@ -229,7 +250,34 @@ export async function POST(req: Request) {
       })
       .join('\n')
 
-    const prompt = `Eine enge Freundesgruppe hat in der App "Welle" auf folgende Frage geantwortet:
+    let prompt: string
+
+    if (wave.prompt_type === 'draw') {
+      prompt = `Eine enge Freundesgruppe hat in der App "Welle" an einer 35-Sekunden-Blindfunk-Zeichen-Challenge teilgenommen.
+Zeichenaufgabe / Thema der Runde: "${wave.prompt}"
+Teilnehmer: ${responseList.length} Freunde haben jeweils innerhalb von 35 Sekunden eine Zeichnung auf der Leinwand eingereicht.
+
+Deine Aufgabe:
+Verfasse ein schlagfertiges, feinsinniges, humorvolles "Echo der Welle" (exakt 1 bis maximal 2 Sätze) speziell zu dieser Zeichenaufgabe ("${wave.prompt}").
+WICHTIG:
+- Beziehe dich DIREKT, KONKRET und SPIELERISCH auf das konkrete Zeichen-Thema "${wave.prompt}"!
+- Kommentiere humorvoll, wie wohl die Interpretationen unter dem 35-Sekunden-Zeitdruck ausgefallen sind (z.B. zwischen genialer Meisterleistung, abstrakter Kunst, Notfall-Gekritzel, Picasso-Vibe oder völliger kreativer Freiheit).
+- Keine abgedroschenen Standard-Floskeln, die auf jede beliebige Zeichnung passen würden – das Echo muss unverwechselbar zu "${wave.prompt}" passen!
+- Nenne keine Klarnamen.
+- Antworte NUR mit dem reinen Echo-Text ohne Anführungszeichen.`
+    } else if (wave.prompt_type === 'photo') {
+      prompt = `Eine enge Freundesgruppe hat in der App "Welle" an einer Live-Schnappschuss-Runde teilgenommen.
+Foto-Impuls: "${wave.prompt}"
+Teilnehmer: ${responseList.length} Freunde haben ein Foto aus ihrem aktuellen Moment eingereicht.
+
+Deine Aufgabe:
+Verfasse ein atmosphärisches, feinsinniges oder witziges "Echo der Welle" (exakt 1 bis 2 Sätze) speziell zu diesem Schnappschuss-Impuls ("${wave.prompt}").
+WICHTIG:
+- Beziehe dich direkt auf das konkrete Motiv "${wave.prompt}".
+- Nenne keine Klarnamen.
+- Antworte NUR mit dem reinen Echo-Text ohne Anführungszeichen.`
+    } else {
+      prompt = `Eine enge Freundesgruppe hat in der App "Welle" auf folgende Frage geantwortet:
 Format: ${wave.prompt_type}
 Frage an die Gruppe: "${wave.prompt}"
 
@@ -243,6 +291,7 @@ WICHTIG:
 - Keine generischen Floskeln, die auf jede beliebige Runde passen würden!
 - Nenne keine Klarnamen, sondern spiele direkt mit den Inhalten (z.B. "Wenn der eine von X träumt, während der andere...").
 - Antworte NUR mit dem reinen Echo-Text ohne Anführungszeichen.`
+    }
 
     let synthesizedEcho = await generateAIEcho(prompt)
 
