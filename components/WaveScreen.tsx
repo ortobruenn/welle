@@ -143,10 +143,7 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
               Offizielle Gruppen-Frage (die alle anderen sehen):
             </span>
           )}
-          <h1
-            className="font-display text-3xl sm:text-4xl font-light leading-snug"
-            style={{ color: '#f2efe9' }}
-          >
+          <h1 className="title-display text-3xl sm:text-4xl" style={{ lineHeight: 1.2 }}>
             {wave.prompt}
           </h1>
         </div>
@@ -211,14 +208,9 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
             <button
               onClick={() => handleSubmit()}
               disabled={!mediaContent || loading}
-              className="w-full py-4 rounded-2xl text-xs uppercase tracking-[0.22em] font-semibold transition-all duration-300 cursor-pointer disabled:opacity-30"
-              style={{
-                background: mediaContent ? '#d4a359' : '#1b1b20',
-                color: mediaContent ? '#070709' : '#7c766e',
-                boxShadow: mediaContent ? '0 10px 30px -8px rgba(212, 163, 89, 0.5)' : 'none',
-              }}
+              className="btn-primary w-full py-4 rounded-2xl"
             >
-              {loading ? 'Versiegelt...' : 'Skizze anonym versiegeln ∿'}
+              {loading ? 'Versiegelt…' : 'Skizze anonym versiegeln ∿'}
             </button>
           </div>
         ) : wave.prompt_type === 'choice' && choices && choices.length >= 2 ? (
@@ -245,13 +237,9 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
             <button
               onClick={() => handleSubmit()}
               disabled={!selected || loading}
-              className="w-full mt-3 py-4 rounded-2xl text-xs uppercase tracking-[0.22em] font-semibold transition-all cursor-pointer disabled:opacity-30"
-              style={{
-                background: selected ? '#d4a359' : '#1b1b20',
-                color: selected ? '#070709' : '#7c766e',
-              }}
+              className="btn-primary w-full mt-3 py-4 rounded-2xl"
             >
-              {loading ? 'Wird gesendet...' : 'Wahl versiegeln ∿'}
+              {loading ? 'Wird gesendet…' : 'Wahl versiegeln ∿'}
             </button>
           </div>
         ) : (
@@ -301,21 +289,21 @@ export default function WaveScreen({ wave, member, onSubmit }: Props) {
             <button
               onClick={() => handleSubmit()}
               disabled={!answer.trim() || loading}
-              className="w-full py-4 rounded-2xl text-xs uppercase tracking-[0.22em] font-semibold transition-all duration-300 cursor-pointer disabled:opacity-30 active:scale-98"
-              style={{
-                background: answer.trim() ? (isMole ? '#e05a47' : '#d4a359') : '#1b1b20',
-                color: answer.trim() ? '#070709' : '#7c766e',
-                boxShadow: answer.trim()
-                  ? isMole
-                    ? '0 10px 30px -8px rgba(224, 90, 71, 0.5)'
-                    : '0 10px 30px -8px rgba(212, 163, 89, 0.5)'
-                  : 'none',
-              }}
+              className="btn-primary w-full py-4 rounded-2xl"
+              style={
+                answer.trim() && isMole
+                  ? {
+                      background: 'linear-gradient(180deg, #ec7a69 0%, #c8432f 100%)',
+                      borderColor: 'rgba(255, 170, 155, 0.5)',
+                      boxShadow: '0 10px 28px -10px rgba(224, 90, 71, 0.65), inset 0 1px 0 rgba(255,255,255,0.3)',
+                    }
+                  : undefined
+              }
             >
               {loading
-                ? 'Wird versiegelt...'
+                ? 'Wird versiegelt…'
                 : isMole
-                ? 'Sabotage-Antwort einschleusen 🕵️'
+                ? 'Sabotage-Antwort einschleusen'
                 : 'Antwort versiegeln ∿'}
             </button>
           </div>

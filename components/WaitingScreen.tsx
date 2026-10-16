@@ -38,43 +38,50 @@ export default function WaitingScreen({
       {/* Top Visualizer */}
       <div className="w-full space-y-2">
         <WaveVisualizer variant="calm" intensity={0.75} height={56} />
-        <p className="text-center text-[11px] uppercase tracking-[0.25em]" style={{ color: '#7c766e' }}>
-          Synchroner Warteraum · {respondedCount} von {totalMembers} versiegelt
+        <p className="label-mono text-center">
+          Synchroner Warteraum · {respondedCount}/{totalMembers} versiegelt
         </p>
       </div>
 
       {/* Center: Prompt & Live Member Orbs */}
       <div className="my-auto py-6 w-full space-y-8 text-center animate-fade-up">
         <div className="space-y-2 px-3">
-          <span className="text-xs uppercase tracking-[0.2em]" style={{ color: '#d4a359' }}>
-            Welle #{wave.number}
-          </span>
-          <h2 className="font-display text-2xl sm:text-3xl font-light leading-snug" style={{ color: '#f2efe9' }}>
+          <span className="label-mono is-accent">Welle Nº{String(wave.number).padStart(2, '0')}</span>
+          <h2 className="title-display text-2xl sm:text-3xl" style={{ lineHeight: 1.25 }}>
             {wave.prompt}
           </h2>
         </div>
 
         {/* Member Constellation */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-md mx-auto">
-          {members.map(m => {
+          {members.map((m, idx) => {
             const isDone = respondedIds.has(m.id)
             return (
               <div
                 key={m.id}
-                className="p-3.5 rounded-2xl flex flex-col items-center gap-2 transition-all duration-500"
+                className="relative p-3.5 rounded-2xl flex flex-col items-center gap-2 transition-all duration-500"
                 style={{
-                  background: isDone ? 'rgba(212, 163, 89, 0.11)' : 'rgba(255,255,255,0.025)',
+                  background: isDone
+                    ? 'linear-gradient(160deg, rgba(212,163,89,0.16), rgba(18,18,22,0.9))'
+                    : 'rgba(255,255,255,0.025)',
                   border: isDone
                     ? '1px solid rgba(212, 163, 89, 0.45)'
-                    : '1px solid rgba(255,255,255,0.07)',
+                    : '1px dashed rgba(255,255,255,0.12)',
+                  boxShadow: isDone ? '0 10px 30px -14px rgba(212,163,89,0.5)' : 'none',
                 }}
               >
+                <span
+                  className="label-mono absolute top-2 left-3"
+                  style={{ fontSize: 8.5, color: isDone ? '#d4a359' : '#4a463f' }}
+                >
+                  CH {String(idx + 1).padStart(2, '0')}
+                </span>
                 <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold relative"
+                  className="mt-3 w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold relative"
                   style={{
-                    background: isDone ? '#d4a359' : 'rgba(255,255,255,0.06)',
-                    color: isDone ? '#070709' : '#7c766e',
-                    boxShadow: isDone ? '0 0 18px rgba(212, 163, 89, 0.4)' : 'none',
+                    background: isDone ? 'linear-gradient(180deg,#e6b96d,#c8913f)' : 'rgba(255,255,255,0.06)',
+                    color: isDone ? '#120d04' : '#7c766e',
+                    boxShadow: isDone ? '0 0 20px rgba(212, 163, 89, 0.4)' : 'none',
                   }}
                 >
                   {m.name.slice(0, 1).toUpperCase()}
@@ -84,10 +91,10 @@ export default function WaitingScreen({
                     {m.name}
                   </p>
                   <p
-                    className="text-[10px] uppercase tracking-wider"
-                    style={{ color: isDone ? '#49b882' : '#7c766e' }}
+                    className="label-mono"
+                    style={{ fontSize: 9, color: isDone ? '#49b882' : '#7c766e' }}
                   >
-                    {isDone ? '✓ Versiegelt' : 'Offen...'}
+                    {isDone ? '✓ Versiegelt' : 'Offen…'}
                   </p>
                 </div>
               </div>

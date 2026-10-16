@@ -69,12 +69,11 @@ export default function CooldownScreen({ wave, onWaveReady }: Props) {
       </div>
 
       <div className="my-auto py-8 space-y-8 w-full animate-fade-in">
-        <div className="space-y-3">
+        <div className="space-y-4">
           <span
-            className="text-[10px] uppercase tracking-[0.28em] px-3 py-1 rounded-full inline-block"
+            className="label-mono is-accent inline-block px-3 py-1.5 rounded-md"
             style={{
-              background: 'rgba(212, 163, 89, 0.1)',
-              color: '#d4a359',
+              background: 'rgba(212, 163, 89, 0.08)',
               border: '1px solid rgba(212, 163, 89, 0.25)',
             }}
           >
@@ -82,21 +81,24 @@ export default function CooldownScreen({ wave, onWaveReady }: Props) {
           </span>
 
           <div
-            className={`font-display text-6xl sm:text-7xl font-light tracking-widest transition-all duration-300 ${
+            className={`font-mono text-5xl sm:text-6xl font-medium tabular-nums transition-all duration-300 ${
               showZeroState ? 'animate-pulse scale-105' : ''
             }`}
-            style={{ color: showZeroState ? '#d4a359' : '#f2efe9' }}
+            style={{
+              letterSpacing: '0.04em',
+              color: showZeroState ? '#d4a359' : '#f2efe9',
+              textShadow: showZeroState
+                ? '0 0 36px rgba(212,163,89,0.6)'
+                : '0 0 28px rgba(212,163,89,0.18)',
+            }}
           >
             {showZeroState
               ? '00:00:00'
               : `${pad(timeLeft.hours)}:${pad(timeLeft.minutes)}:${pad(timeLeft.seconds)}`}
           </div>
 
-          <p
-            className="text-xs tracking-[0.25em] uppercase"
-            style={{ color: showZeroState ? '#d4a359' : '#7c766e' }}
-          >
-            {showZeroState ? 'Neue Welle rollt an...' : 'bis zum nächsten gemeinsamen Impuls'}
+          <p className="label-mono" style={{ color: showZeroState ? '#d4a359' : '#7c766e' }}>
+            {showZeroState ? 'Neue Welle rollt an…' : 'bis zum nächsten gemeinsamen Impuls'}
           </p>
         </div>
 
