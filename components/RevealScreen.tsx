@@ -1,9 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { Wave, Member, WaveResponse } from '@/lib/types'
-import { extractEcho, extractUndercover, extractGlitch, cleanOptions, extractEnigma, extractVibeOptions } from '@/lib/mystery'
-import PushBell from './PushBell'
+import {
+  extractEcho,
+  extractUndercover,
+  cleanOptions,
+  parseSpectrumResponse,
+  parseChallengeResponse,
+  extractLogicConfig,
+  extractScrambleConfig,
+  extractReactions,
+  extractUndercoverVotes,
+} from '@/lib/mystery'
+import WaveVisualizer from './WaveVisualizer'
 
 interface Props {
   wave: Wave
@@ -13,6 +23,8 @@ interface Props {
   onComplete: () => void
 }
 
+const SPARK_EMOJIS = ['🔥', '💀', '❤️', '🎯']
+
 export default function RevealScreen({
   wave,
   responses,
@@ -20,679 +32,804 @@ export default function RevealScreen({
   currentMember,
   onComplete,
 }: Props) {
-  const isPulse = wave.prompt_type === 'pulse'
-  const isSilence = wave.prompt_type === 'silence'
-  const isSpectrum = wave.prompt_type === 'spectrum'
-  const isEnigma = wave.prompt_type === 'enigma'
-  const isVibe = wave.prompt_type === 'vibe'
-  const isUndercover = wave.prompt_type === 'undercover'
-  const supportsBlindGuessing = !isPulse && !isSilence && !isSpectrum && !isEnigma && !isVibe && !isUndercover && responses.length > 1
-  const supportsUndercoverVoting = isUndercover && responses.length > 1
+  const waveFormat = wave.format || wave.prompt_type
+  const isSpectrum = waveFormat === 'spectrum'
+  const isUndercover = waveFormat === 'undercover'
+  const isDraw = waveFormat === 'draw'
+  const isPhoto = waveFormat === 'photo'
+  const isMemory = waveFormat === 'memory'
+  const isLogic = waveFormat === 'logic'
+  const isScramble = waveFormat === 'scramble'
+  const isChallenge = isMemory || isLogic || isScramble
+  const isLegacyNonGuess =
+    waveFormat === 'pulse' ||
+    waveFormat === 'silence' ||
+    waveFormat === 'enigma' ||
+    waveFormat === 'vibe'
 
-  // Mystery Guessing state
-  const [isUnveiled, setIsUnveiled] = useState(!supportsBlindGuessing && !supportsUndercoverVoting)
-  const [guesses, setGuesses] = useState<Record<string, string>>({}) // responseId -> memberId
-  const [suspectedResponseId, setSuspectedResponseId] = useState<string | null>(null)
+  const currentUserId =
+    currentMember?.id ||
+    (typeof window !== 'undefined' ? localStorage.getItem('welle_member_id') : null)
+
+  const otherResponses = responses.filter(r => r.member_id !== currentUserId)
+  const supportsBlindGuessing =
+    !isSpectrum &&
+    !isUndercover &&
+    !isChallenge &&
+    !isLegacyNonGuess &&
+    otherResponses.length > 0
+  const supportsUndercoverVoting = isUndercover && otherResponses.length > 0
+
+  const [isUnveiled, setIsUnveiled] = useState(
+    !supportsBlindGuessing && !supportsUndercoverVoting
+  )
+  // responseId -> guessed memberId
+  const [guesses, setGuesses] = useState<Record<string, string>>({})
+  // Undercover suspect memberId selected by current user
+  const [suspectMemberId, setSuspectMemberId] = useState<string | null>(null)
   const [lightboxImg, setLightboxImg] = useState<string | null>(null)
 
-  // Oracle Echo state
   const [echo, setEcho] = useState<string | null>(extractEcho(wave.options))
   const [loadingEcho, setLoadingEcho] = useState(false)
+  const echoRequestedForWaveRef = useRef<string | null>(null)
 
-  // Glitch anomaly (only valid for undercover waves)
-  const glitch = isUndercover ? (extractUndercover(wave.options) || extractGlitch(wave.options)) : null
+  const undercover = isUndercover ? extractUndercover(wave.options) : null
+  const poles = cleanOptions(wave.options)
+  const reactionsMap = extractReactions(wave.options)
+  const votesMap = extractUndercoverVotes(wave.options)
 
   useEffect(() => {
-    const current = extractEcho(wave.options)
-    if (current) setEcho(current)
+    const currentEcho = extractEcho(wave.options)
+    if (currentEcho) {
+      setEcho(currentEcho)
+      setLoadingEcho(false)
+    }
   }, [wave.options])
 
-  const getMemberName = (memberId: string) => {
-    const m = members.find(m => m.id === memberId)
-    return m?.name || '?'
+  // Auto-trigger echo synthesis once per wave if missing
+  useEffect(() => {
+    const currentEcho = extractEcho(wave.options)
+    if (currentEcho) return
+    if (responses.length === 0) return
+    if (echoRequestedForWaveRef.current === wave.id) return
+
+    echoRequestedForWaveRef.current = wave.id
+    setLoadingEcho(true)
+    fetch('/api/synthesize-echo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ waveId: wave.id }),
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (d?.echo) setEcho(d.echo)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingEcho(false))
+  }, [wave.id, wave.options, responses.length])
+
+  const getMemberName = (memberId: string, fallback?: string) => {
+    const m = members.find(x => x.id === memberId)
+    return m?.name || fallback || 'Freund'
   }
 
-  // Other members available to guess (excluding current user)
-  const otherMembers = members.filter(m => m.id !== currentMember?.id)
+  const otherMembers = members.filter(m => m.id !== currentUserId)
 
-  // Calculate guessing stats
-  const calculateScore = () => {
-    const guessableResponses = responses.filter(r => r.member_id !== currentMember?.id)
-    if (guessableResponses.length === 0) return null
+  // Blind Guessing Helpers
+  const allGuessed =
+    otherResponses.length > 0 && otherResponses.every(r => !!guesses[r.id])
 
+  const guessStats = (() => {
     let correct = 0
-    let attempted = 0
-    guessableResponses.forEach(r => {
-      const g = guesses[r.id]
-      if (g) {
-        attempted++
-        if (g === r.member_id) correct++
+    for (const r of otherResponses) {
+      if (guesses[r.id] === r.member_id) correct++
+    }
+    return { correct, total: otherResponses.length }
+  })()
+
+  // Spectrum Calculations
+  const spectrumAnalysis = (() => {
+    if (!isSpectrum || responses.length === 0) return null
+    const items = responses.map(r => {
+      const parsed = parseSpectrumResponse(r.content)
+      return {
+        responseId: r.id,
+        memberId: r.member_id,
+        name: getMemberName(r.member_id, r.members?.name),
+        self: parsed.self,
+        guessAvg: parsed.guessAvg,
       }
     })
+    const actualAvg = Math.round(
+      items.reduce((acc, it) => acc + it.self, 0) / items.length
+    )
+    const minVal = Math.min(...items.map(i => i.self))
+    const maxVal = Math.max(...items.map(i => i.self))
+    const spread = maxVal - minVal
+    const harmonyPct = Math.max(0, Math.min(100, Math.round(100 - spread)))
 
-    return { correct, attempted, total: guessableResponses.length }
+    // Who guessed closest to actualAvg?
+    const withDiff = items
+      .map(it => ({
+        ...it,
+        diff: Math.abs(it.guessAvg - actualAvg),
+      }))
+      .sort((a, b) => a.diff - b.diff)
+
+    return {
+      items,
+      actualAvg,
+      harmonyPct,
+      radarChampion: withDiff[0] || null,
+    }
+  })()
+
+  // Challenge Leaderboard Calculations (memory, logic, scramble)
+  const challengeAnalysis = (() => {
+    if (!isChallenge || responses.length === 0) return null
+    const items = responses.map(r => {
+      const parsed = parseChallengeResponse(r.content)
+      return {
+        responseId: r.id,
+        memberId: r.member_id,
+        name: getMemberName(r.member_id, r.members?.name),
+        passed: parsed.passed,
+        timeMs: parsed.timeMs,
+        detail: parsed.detail,
+        progress: parsed.progress ?? (parsed.passed ? 100 : 0),
+      }
+    })
+    const sorted = [...items].sort((a, b) => {
+      if (a.passed !== b.passed) return a.passed ? -1 : 1
+      if (a.passed && b.passed) return a.timeMs - b.timeMs
+      return (b.progress || 0) - (a.progress || 0)
+    })
+    const winners = sorted.filter(i => i.passed)
+    const losers = sorted.filter(i => !i.passed)
+    return {
+      sorted,
+      winners,
+      losers,
+      fastest: winners[0] || null,
+      logicConfig: isLogic ? extractLogicConfig(wave.options) : null,
+      scrambleConfig: isScramble
+        ? extractScrambleConfig(wave.options, `${wave.id}-${wave.number}`)
+        : null,
+    }
+  })()
+
+  // Toggle live spark reaction on a card
+  const handleToggleReaction = async (responseId: string, emoji: string) => {
+    if (!currentMember) return
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(15)
+    }
+    try {
+      await fetch('/api/wave/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'toggle_reaction',
+          waveId: wave.id,
+          responseId,
+          memberId: currentMember.id,
+          memberName: currentMember.name,
+          emoji,
+        }),
+      })
+    } catch (e) {
+      console.warn('Failed to toggle reaction:', e)
+    }
   }
 
-  const score = isUnveiled && supportsBlindGuessing ? calculateScore() : null
+  // Submit Undercover Vote & Unveil
+  const handleConfirmUndercoverVote = async () => {
+    if (!suspectMemberId) return
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate([30, 20, 60])
+    }
+    setIsUnveiled(true)
+    if (currentMember) {
+      fetch('/api/wave/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'cast_vote',
+          waveId: wave.id,
+          memberId: currentMember.id,
+          suspectMemberId,
+        }),
+      }).catch(() => {})
+    }
+  }
+
+  const handleUnveilBlindGuesses = () => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate([30, 20, 60])
+    }
+    setIsUnveiled(true)
+  }
 
   return (
-    <div
-      className="min-h-screen flex flex-col px-6 md:px-8 py-12 max-w-lg mx-auto"
-      style={{ background: '#0a0a0a' }}
-    >
-      {/* Header */}
-      <div className="mb-6 animate-fade-in flex items-center justify-between">
-        <span className="text-xs tracking-[0.3em] uppercase" style={{ color: '#6b6560' }}>
-          Welle {wave.number} · Enthüllung
-        </span>
-        <div className="flex items-center gap-2.5">
-          <PushBell memberId={currentMember?.id} />
-          <span className="text-xs tracking-[0.2em] uppercase" style={{ color: '#c8a065' }}>
+    <div className="flex-1 flex flex-col px-5 pb-12 pt-2 max-w-xl mx-auto w-full space-y-7">
+      {/* Top Visualizer & Prompt Header */}
+      <div className="text-center space-y-3 animate-fade-in">
+        <WaveVisualizer
+          variant={isUndercover ? 'danger' : isSpectrum ? 'sync' : 'amber'}
+          intensity={1.1}
+          height={48}
+        />
+
+        <span
+          className="text-[10px] uppercase tracking-[0.25em] px-3 py-1 rounded-full inline-block"
+          style={{
+            background: isUndercover ? 'rgba(224, 90, 71, 0.14)' : 'rgba(212, 163, 89, 0.12)',
+            color: isUndercover ? '#e05a47' : '#d4a359',
+            border: isUndercover
+              ? '1px solid rgba(224, 90, 71, 0.35)'
+              : '1px solid rgba(212, 163, 89, 0.3)',
+          }}
+        >
           {isUndercover
-            ? 'Undercover-Anomalie'
-            : isEnigma
-            ? 'Rätsel-Anomalie'
+            ? '🕵️ Sabotage-Verhör'
             : isSpectrum
-            ? 'Spektrum'
-            : isVibe
-            ? 'Vibe Check'
-            : isPulse
-            ? 'Resonanz'
-            : isSilence
-            ? 'Stille'
-            : wave.prompt_type === 'photo'
-            ? 'Foto'
-            : wave.prompt_type === 'draw'
-            ? 'Skizze'
-            : 'Ergebnis'}
-          </span>
-        </div>
+            ? '🎚️ Frequenz-Abgleich'
+            : isMemory
+            ? '🧠 35s-Gedächtnis-Tresor · Auswertung'
+            : isLogic
+            ? '🧩 35s-Logik-Falle · Auswertung'
+            : isScramble
+            ? '⚡ 35s-Kniffel-Sprint · Auswertung'
+            : isDraw
+            ? '🎨 35s-Blindfunk Galerie'
+            : isPhoto
+            ? '📷 Live-Schnappschuss Galerie'
+            : '🔒 Enthüllung der Welle'}
+        </span>
+
+        <h1
+          className="font-display text-3xl sm:text-4xl font-light leading-snug px-2"
+          style={{ color: '#f2efe9' }}
+        >
+          {wave.prompt}
+        </h1>
       </div>
 
-      {/* Prompt */}
-      <p
-        className="font-display text-xl md:text-2xl font-light italic mb-8 text-center animate-fade-up"
-        style={{ color: '#c8a065', animationDelay: '100ms' }}
-      >
-        „{wave.prompt}“
-      </p>
-
-      {/* Blind Guessing Teaser Banner (when still veiled) */}
-      {supportsBlindGuessing && !isUnveiled && (
-        <div className="mb-6 p-4 rounded-sm border border-[#2a2a2a] bg-[#111111]/80 text-center animate-fade-in shadow-lg">
-          <div className="inline-flex items-center gap-2 mb-1">
-            <span className="text-[#c8a065] text-xs">👁</span>
-            <span className="text-[11px] tracking-[0.25em] uppercase text-[#c8a065] font-medium">
-              Intuitions-Rätsel
-            </span>
-          </div>
-          <p className="text-xs text-[#a09990] leading-relaxed">
-            Die Schöpfer sind verborgen. Tippe auf die Namen, um zu raten, wer was abgegeben hat – oder lüfte den Schleier direkt.
-          </p>
-        </div>
-      )}
-
-      {/* Undercover Teaser Banner (when still veiled) */}
-      {isUndercover && !isUnveiled && (
-        <div className="mb-6 p-5 rounded-sm border border-[#c8a065]/50 bg-[#16120a] text-center animate-fade-in shadow-xl">
-          <div className="inline-flex items-center gap-2 mb-2">
-            <span className="text-base text-[#c8a065] animate-pulse">🕵️</span>
-            <span className="text-xs tracking-[0.25em] uppercase text-[#c8a065] font-semibold">
-              Undercover-Anomalie · Finde das Chamäleon
-            </span>
-          </div>
-          <p className="text-xs text-[#a09990] leading-relaxed mb-3">
-            Einer von euch hat heimlich eine verdrehte Gegen-Mission erhalten und versucht, seine Antwort unauffällig zu tarnen.
-          </p>
-          <div className="inline-block px-3 py-1.5 rounded bg-[#0a0a0a] border border-[#2a2318] text-[11px] text-[#e8e4de]">
-            {currentMember?.id === glitch?.memberId
-              ? '🎭 Du bist der Schatten-Agent! Hoffe, dass deine Tarnung standhält...'
-              : '👉 Tippe auf die Antwort, die du für die Tarnung hältst!'}
-          </div>
-        </div>
-      )}
-
-      {/* Undercover Resolution Hero Card (when unveiled) */}
-      {isUnveiled && isUndercover && glitch && (
-        <div className="mb-8 p-6 rounded-sm border border-[#c8a065]/60 bg-gradient-to-b from-[#18140c] to-[#0c0a06] shadow-2xl animate-fade-up">
-          <div className="flex items-center justify-between mb-4 border-b border-[#2a2214] pb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-base text-[#c8a065]">🕵️</span>
-              <span className="text-xs tracking-[0.25em] uppercase text-[#c8a065] font-semibold">
-                Undercover-Auflösung
+      {/* =================================================================== */}
+      {/* CHALLENGE LEADERBOARD (Ruhmeshalle 🏆 vs. Trostpflaster-Club 🩹)    */}
+      {/* =================================================================== */}
+      {isChallenge && challengeAnalysis && (
+        <div className="space-y-4 animate-fade-up">
+          {/* Summary Podium Cards */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="glass-card-amber rounded-2xl p-4 text-center space-y-1">
+              <span className="text-[10px] uppercase tracking-[0.2em] block" style={{ color: '#49b882' }}>
+                🏆 Ruhmeshalle ({challengeAnalysis.winners.length})
               </span>
-            </div>
-            <span className="text-[10px] tracking-wider uppercase px-2 py-0.5 rounded border border-[#c8a065]/40 text-[#c8a065] bg-[#c8a065]/10">
-              Enttarnt
-            </span>
-          </div>
-
-          <div className="text-center my-3">
-            <p className="text-xs tracking-[0.2em] uppercase text-[#888] mb-1">
-              Das geheime Chamäleon war:
-            </p>
-            <h3 className="font-display text-2xl text-[#e8e4de] font-medium">
-              {glitch.memberName || getMemberName(glitch.memberId)}
-            </h3>
-          </div>
-
-          {/* Voting outcome for the viewing user */}
-          {suspectedResponseId && (
-            <div className="my-4 p-3.5 rounded bg-[#0a0a0a] border border-[#261f14] text-center">
-              {(() => {
-                const undercoverResp = responses.find(r => r.member_id === glitch.memberId)
-                const hit = undercoverResp && suspectedResponseId === undercoverResp.id
-                if (currentMember?.id === glitch.memberId) {
-                  return (
-                    <p className="text-xs text-[#c8a065]">
-                      🎭 Du warst im Undercover-Einsatz! Schauen wir, ob deine Tarnung standgehalten hat.
-                    </p>
-                  )
-                }
-                if (hit) {
-                  return (
-                    <p className="text-xs text-emerald-400 font-medium">
-                      🎯 Volltreffer! Du hast die Tarnung durchschaut und richtig getippt!
-                    </p>
-                  )
-                }
-                return (
-                  <p className="text-xs text-amber-400/90 font-medium">
-                    🎭 Getäuscht! Du hast jemand anderen verdächtigt – die Tarnung hat dich erwischt!
+              {challengeAnalysis.fastest ? (
+                <>
+                  <p className="font-display text-2xl font-semibold truncate" style={{ color: '#f2efe9' }}>
+                    👑 {challengeAnalysis.fastest.name}
                   </p>
-                )
-              })()}
+                  <p className="text-[11px]" style={{ color: '#9c958c' }}>
+                    Schnellste Zeit: {(challengeAnalysis.fastest.timeMs / 1000).toFixed(1).replace('.', ',')}s ⚡
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-display text-xl font-light" style={{ color: '#9c958c' }}>
+                    Niemand!
+                  </p>
+                  <p className="text-[11px]" style={{ color: '#7c766e' }}>
+                    Alle sind gescheitert
+                  </p>
+                </>
+              )}
+            </div>
+
+            <div className="glass-card rounded-2xl p-4 text-center space-y-1">
+              <span className="text-[10px] uppercase tracking-[0.2em] block" style={{ color: '#e05a47' }}>
+                🩹 Trostpflaster ({challengeAnalysis.losers.length})
+              </span>
+              {challengeAnalysis.losers.length > 0 ? (
+                <>
+                  <p className="font-display text-xl font-medium truncate" style={{ color: '#f2efe9' }}>
+                    {challengeAnalysis.losers.map(l => l.name).join(', ')}
+                  </p>
+                  <p className="text-[11px]" style={{ color: '#9c958c' }}>
+                    Symbolisches Pflaster verliehen 🩹
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-display text-xl font-light" style={{ color: '#49b882' }}>
+                    0 Pflaster!
+                  </p>
+                  <p className="text-[11px]" style={{ color: '#9c958c' }}>
+                    Die ganze Gruppe hat abgeliefert
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Official Solution / Logic Explanation Box */}
+          {isLogic && challengeAnalysis.logicConfig && (
+            <div
+              className="rounded-2xl p-4 space-y-1.5"
+              style={{
+                background: 'rgba(212, 163, 89, 0.1)',
+                border: '1px solid rgba(212, 163, 89, 0.35)',
+              }}
+            >
+              <span className="text-[10px] uppercase tracking-[0.22em] font-semibold block" style={{ color: '#d4a359' }}>
+                🧩 Logische Auflösung: {challengeAnalysis.logicConfig.choices[challengeAnalysis.logicConfig.correctIndex]}
+              </span>
+              <p className="text-xs leading-relaxed" style={{ color: '#e5e0d8' }}>
+                {challengeAnalysis.logicConfig.explanation}
+              </p>
             </div>
           )}
 
-          {/* The secret mission prompt */}
-          <div className="mt-4 p-3.5 bg-[#0e0c08] border border-[#2d2417] rounded">
-            <span className="text-[10px] tracking-widest text-[#c8a065] uppercase block mb-1">
-              Heimlicher Spezial-Auftrag von {glitch.memberName || getMemberName(glitch.memberId)}:
-            </span>
-            <p className="font-display text-sm italic text-[#e8e4de] leading-relaxed">
-              „{glitch.prompt}“
-            </p>
+          {isScramble && challengeAnalysis.scrambleConfig && (
+            <div
+              className="rounded-2xl p-3.5 text-center"
+              style={{
+                background: 'rgba(212, 163, 89, 0.1)',
+                border: '1px solid rgba(212, 163, 89, 0.3)',
+              }}
+            >
+              <span className="text-xs font-medium" style={{ color: '#d4a359' }}>
+                {challengeAnalysis.scrambleConfig.mode === 'word'
+                  ? `🔓 Lösungswort: ${challengeAnalysis.scrambleConfig.solutionWord}`
+                  : `🔓 Richtige Kombination: ${(challengeAnalysis.scrambleConfig.solutionIndices || [])
+                      .map(i => (challengeAnalysis.scrambleConfig?.tiles || [])[i])
+                      .join(' + ')} = ${challengeAnalysis.scrambleConfig.targetSum}`}
+              </span>
+            </div>
+          )}
+
+          {/* Ranked Member Result Cards */}
+          <div className="space-y-3">
+            {challengeAnalysis.sorted.map((item, rankIdx) => {
+              const isMine = item.memberId === currentUserId
+              const cardReactions = reactionsMap[item.responseId] || []
+              const secStr = (item.timeMs / 1000).toFixed(1).replace('.', ',')
+
+              return (
+                <div
+                  key={item.responseId}
+                  className="rounded-2xl p-4 space-y-3 transition-all"
+                  style={{
+                    background: item.passed
+                      ? 'rgba(73, 184, 130, 0.08)'
+                      : 'rgba(224, 90, 71, 0.08)',
+                    border: item.passed
+                      ? '1px solid rgba(73, 184, 130, 0.35)'
+                      : '1px solid rgba(224, 90, 71, 0.35)',
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                        style={{
+                          background: item.passed ? '#49b882' : 'rgba(224, 90, 71, 0.25)',
+                          color: item.passed ? '#070709' : '#e05a47',
+                        }}
+                      >
+                        {item.passed ? `#${rankIdx + 1}` : '🩹'}
+                      </span>
+                      <div>
+                        <span className="text-sm font-semibold block" style={{ color: '#f2efe9' }}>
+                          {item.name} {isMine ? '(Du)' : ''}
+                          {item.passed && rankIdx === 0 ? ' ⚡' : ''}
+                        </span>
+                        <span className="text-xs" style={{ color: '#9c958c' }}>
+                          {item.detail}
+                        </span>
+                      </div>
+                    </div>
+
+                    <span
+                      className="text-[11px] font-mono font-semibold px-2.5 py-1 rounded-full shrink-0"
+                      style={{
+                        background: item.passed
+                          ? 'rgba(73, 184, 130, 0.18)'
+                          : 'rgba(224, 90, 71, 0.18)',
+                        color: item.passed ? '#49b882' : '#e05a47',
+                      }}
+                    >
+                      {item.passed ? `🏆 ${secStr}s` : '🩹 Trostpflaster'}
+                    </span>
+                  </div>
+
+                  {/* Live Spark Reactions */}
+                  <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      {SPARK_EMOJIS.map(emoji => {
+                        const myActive = cardReactions.some(
+                          rx => rx.memberId === currentUserId && rx.emoji === emoji
+                        )
+                        return (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={() => handleToggleReaction(item.responseId, emoji)}
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-xs transition-transform active:scale-125 cursor-pointer"
+                            style={{
+                              background: myActive
+                                ? 'rgba(212, 163, 89, 0.25)'
+                                : 'rgba(255,255,255,0.04)',
+                              border: myActive
+                                ? '1px solid rgba(212, 163, 89, 0.6)'
+                                : '1px solid rgba(255,255,255,0.07)',
+                            }}
+                          >
+                            {emoji}
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {cardReactions.length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {cardReactions.map((rx, i) => (
+                          <span
+                            key={i}
+                            className="text-[11px] px-2 py-0.5 rounded-full"
+                            style={{
+                              background: 'rgba(255,255,255,0.06)',
+                              color: '#d8d3cb',
+                            }}
+                          >
+                            {rx.emoji} {rx.memberName}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
 
-      {/* 0. SPECIAL CASE: ENIGMA REVEAL */}
-      {isEnigma ? (
-        <div className="flex-1 flex flex-col justify-center animate-fade-up my-4 w-full">
-          {(() => {
-            const enigma = extractEnigma(wave.options)
-            const romanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI']
-            return (
-              <div className="flex flex-col gap-6 w-full">
-                <div className="p-6 md:p-8 border border-[#c8a065]/40 bg-[#0e0c08] rounded-sm shadow-2xl relative overflow-hidden">
-                  <div className="text-center mb-6">
-                    <span className="text-[11px] tracking-[0.3em] uppercase text-[#c8a065] font-semibold">
-                      ✦ Die zusammengefügte Inschrift
-                    </span>
-                  </div>
+      {/* =================================================================== */}
+      {/* SPECTRUM RADAR & HARMONY VISUALIZATION                              */}
+      {/* =================================================================== */}
+      {isSpectrum && spectrumAnalysis && (
+        <div className="space-y-5 animate-fade-up">
+          {/* Harmony & Radar Champion Banner */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="glass-card-amber rounded-2xl p-4 text-center space-y-1">
+              <span className="text-[10px] uppercase tracking-[0.2em] block" style={{ color: '#d4a359' }}>
+                Gruppen-Synchronizität
+              </span>
+              <p className="font-display text-3xl font-semibold" style={{ color: '#f2efe9' }}>
+                {spectrumAnalysis.harmonyPct}%
+              </p>
+              <p className="text-[11px]" style={{ color: '#9c958c' }}>
+                Gruppen-Schnitt: {spectrumAnalysis.actualAvg}%
+              </p>
+            </div>
 
-                  {/* Assembled Fragments in Order */}
-                  <div className="flex flex-col gap-3 mb-6">
-                    {enigma?.fragments.map((frag, idx) => (
-                      <div key={idx} className="p-3.5 bg-[#0a0a0a]/90 border border-[#231d14] rounded">
-                        <span className="text-[10px] tracking-widest text-[#c8a065] uppercase block mb-1">
-                          Fragment {romanNumerals[idx] || `${idx + 1}`}
-                        </span>
-                        <p className="font-display text-base text-[#e8e4de] italic leading-relaxed">
-                          „{frag}“
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Solution Solved Banner */}
-                  <div className="p-4 bg-[#c8a065]/10 border border-[#c8a065] rounded text-center">
-                    <span className="text-[10px] tracking-[0.25em] uppercase text-[#c8a065] block mb-1">
-                      Gelöstes Kollektiv-Siegel
-                    </span>
-                    <span className="font-display text-2xl tracking-[0.3em] text-[#e8e4de] font-semibold">
-                      {enigma?.solution || 'GELÖST'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Solvers */}
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  {responses.map(resp => (
-                    <span
-                      key={resp.id}
-                      className="px-3 py-1 border border-[#c8a065]/40 text-xs tracking-[0.15em] text-[#c8a065] rounded-full bg-[#c8a065]/5"
-                    >
-                      ✓ {getMemberName(resp.member_id)}
-                    </span>
-                  ))}
-                </div>
+            {spectrumAnalysis.radarChampion && (
+              <div className="glass-card rounded-2xl p-4 text-center space-y-1">
+                <span className="text-[10px] uppercase tracking-[0.2em] block" style={{ color: '#49b882' }}>
+                  🎯 Radar-Champion
+                </span>
+                <p className="font-display text-2xl font-semibold truncate" style={{ color: '#f2efe9' }}>
+                  {spectrumAnalysis.radarChampion.name}
+                </p>
+                <p className="text-[11px]" style={{ color: '#9c958c' }}>
+                  Tipp {spectrumAnalysis.radarChampion.guessAvg}% (nur {spectrumAnalysis.radarChampion.diff}% daneben)
+                </p>
               </div>
-            )
-          })()}
-        </div>
-      ) : isSpectrum ? (
-        <div className="flex-1 flex flex-col justify-center animate-fade-up my-4 w-full">
-          {(() => {
-            const choices = cleanOptions(wave.options)
-            const parsed = responses.map(r => {
-              try {
-                const data = JSON.parse(r.content)
-                return {
-                  id: r.id,
-                  memberId: r.member_id,
-                  value: typeof data.value === 'number' ? data.value : 50,
-                  poleA: data.poleA || choices?.[0] || 'Pol A',
-                  poleB: data.poleB || choices?.[1] || 'Pol B',
-                }
-              } catch {
-                return {
-                  id: r.id,
-                  memberId: r.member_id,
-                  value: 50,
-                  poleA: choices?.[0] || 'Pol A',
-                  poleB: choices?.[1] || 'Pol B',
-                }
-              }
-            })
+            )}
+          </div>
 
-            const poleA = parsed[0]?.poleA || choices?.[0] || 'Pol A'
-            const poleB = parsed[0]?.poleB || choices?.[1] || 'Pol B'
+          {/* Interactive Axis with All Member Pins */}
+          <div className="glass-card rounded-2xl p-5 space-y-5">
+            <div className="flex justify-between text-xs font-medium" style={{ color: '#9c958c' }}>
+              <span className="max-w-[45%]">{poles?.[0] || '0%'}</span>
+              <span className="max-w-[45%] text-right">{poles?.[1] || '100%'}</span>
+            </div>
 
-            return (
-              <div className="flex flex-col gap-8 w-full">
-                {/* Visual Spectrum Axis */}
-                <div className="p-6 border border-[#1e1e1e] bg-[#0d0d0d] rounded-sm flex flex-col gap-8 shadow-2xl">
-                  <div className="text-center">
-                    <span className="text-xs tracking-[0.25em] uppercase text-[#c8a065]">
-                      Die Resonanz-Achse
-                    </span>
-                  </div>
-
-                  {/* Axis Line with Pins */}
-                  <div className="relative h-20 flex items-center px-4 my-2">
-                    <div className="w-full h-1 bg-[#1e1e1e] rounded-full relative">
-                      <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-[#3a3a3a] -translate-x-1/2" />
-                    </div>
-
-                    {parsed.map((item, idx) => {
-                      const name = getMemberName(item.memberId)
-                      const isEven = idx % 2 === 0
-                      return (
-                        <div
-                          key={item.id}
-                          className="absolute flex flex-col items-center -translate-x-1/2 transition-all duration-700 animate-fade-up"
-                          style={{
-                            left: `calc(1rem + (100% - 2rem) * ${item.value / 100})`,
-                            top: isEven ? '2px' : 'auto',
-                            bottom: isEven ? 'auto' : '2px',
-                          }}
-                        >
-                          {isEven && (
-                            <span className="text-[11px] tracking-wider text-[#e8e4de] mb-1 whitespace-nowrap bg-black/80 px-1.5 py-0.5 rounded border border-[#c8a065]/40 font-medium">
-                              {name} ({item.value}%)
-                            </span>
-                          )}
-                          <div className="w-4 h-4 rounded-full border-2 border-[#c8a065] bg-[#0a0a0a] flex items-center justify-center shadow-[0_0_12px_rgba(200,160,101,0.6)]">
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#c8a065]" />
-                          </div>
-                          {!isEven && (
-                            <span className="text-[11px] tracking-wider text-[#e8e4de] mt-1 whitespace-nowrap bg-black/80 px-1.5 py-0.5 rounded border border-[#c8a065]/40 font-medium">
-                              {name} ({item.value}%)
-                            </span>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {/* Pole Labels */}
-                  <div className="flex justify-between items-center text-xs tracking-wider uppercase text-[#6b6560] px-2 pt-2 border-t border-[#1a1a1a]">
-                    <span className="max-w-[45%] text-left font-medium text-[#c8a065]">
-                      ← {poleA}
-                    </span>
-                    <span className="max-w-[45%] text-right font-medium text-[#c8a065]">
-                      {poleB} →
-                    </span>
-                  </div>
-                </div>
-
-                {/* Individual Lean Breakdown */}
-                <div className="flex flex-col gap-3">
-                  {parsed.map(item => {
-                    const name = getMemberName(item.memberId)
-                    const leanText =
-                      item.value === 50
-                        ? 'Exakt ausgeglichen in der Mitte'
-                        : item.value < 50
-                        ? `${(50 - item.value) * 2}% Neigung zu „${poleA}“`
-                        : `${(item.value - 50) * 2}% Neigung zu „${poleB}“`
-
-                    return (
-                      <div
-                        key={item.id}
-                        className="p-4 border border-[#1e1e1e] bg-[#0a0a0a] rounded flex items-center justify-between"
-                      >
-                        <span className="text-xs tracking-widest uppercase text-[#c8a065]">
-                          {name}
-                        </span>
-                        <span className="text-xs text-[#e8e4de]">{leanText}</span>
-                      </div>
-                    )
-                  })}
-                </div>
+            <div className="relative h-14 flex items-center my-2">
+              <div className="w-full h-2 rounded-full relative" style={{ background: '#1e1e26' }}>
+                {/* Average Marker Line */}
+                <div
+                  className="absolute -top-3 -bottom-3 w-0.5"
+                  style={{
+                    left: `${spectrumAnalysis.actualAvg}%`,
+                    background: 'rgba(73, 184, 130, 0.7)',
+                  }}
+                />
               </div>
-            )
-          })()}
-        </div>
-      ) : isVibe ? (
-        /* SPECIAL CASE: VIBE REVEAL */
-        <div className="flex-1 flex flex-col justify-center animate-fade-up my-4 w-full">
-          {(() => {
-            const vibeItems = extractVibeOptions(wave.options) || []
-            const totalResponses = responses.length || 1
 
-            return (
-              <div className="flex flex-col gap-6 w-full">
-                <div className="text-center mb-2">
-                  <span className="text-xs tracking-[0.25em] uppercase text-[#c8a065]">
-                    Das kollektive Stimmungsbild
+              {/* Member Nodes */}
+              {spectrumAnalysis.items.map((item, idx) => (
+                <div
+                  key={item.responseId}
+                  className="absolute -translate-x-1/2 flex flex-col items-center"
+                  style={{
+                    left: `${item.self}%`,
+                    top: idx % 2 === 0 ? '-6px' : '16px',
+                  }}
+                >
+                  <div
+                    className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap shadow-md"
+                    style={{
+                      background:
+                        item.memberId === currentMember?.id ? '#d4a359' : '#25252e',
+                      color:
+                        item.memberId === currentMember?.id ? '#070709' : '#f2efe9',
+                      border: '1px solid rgba(255,255,255,0.18)',
+                    }}
+                  >
+                    {item.name} · {item.self}%
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Individual Breakdown List */}
+            <div className="space-y-2 pt-2 border-t border-white/5">
+              {spectrumAnalysis.items.map(it => (
+                <div
+                  key={it.responseId}
+                  className="flex items-center justify-between text-xs py-1.5 px-2 rounded-lg"
+                  style={{ background: 'rgba(255,255,255,0.02)' }}
+                >
+                  <span className="font-medium" style={{ color: '#f2efe9' }}>
+                    {it.name}
                   </span>
+                  <div className="flex items-center gap-3">
+                    <span style={{ color: '#d4a359' }}>
+                      Selbst: <strong>{it.self}%</strong>
+                    </span>
+                    <span style={{ color: '#49b882' }}>
+                      Gruppen-Tipp: <strong>{it.guessAvg}%</strong>
+                    </span>
+                  </div>
                 </div>
-
-                <div className={`grid gap-4 w-full ${vibeItems.length === 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
-                  {vibeItems.map(item => {
-                    const voters = responses.filter(r => r.content === item.title || r.content === item.id)
-                    const count = voters.length
-                    const percent = Math.round((count / totalResponses) * 100)
-                    const maxVotes = Math.max(...vibeItems.map(vi => responses.filter(r => r.content === vi.title || r.content === vi.id).length))
-                    const isWinner = count > 0 && count === maxVotes
-
-                    return (
-                      <div
-                        key={item.id}
-                        className={`p-4 rounded-lg border transition-all duration-300 flex flex-col justify-between ${
-                          isWinner && count > 0
-                            ? 'border-[#c8a065] bg-[#c8a065]/5 shadow-[0_0_20px_rgba(200,160,101,0.15)]'
-                            : 'border-[#1e1e1e] bg-[#0d0d0d]'
-                        }`}
-                      >
-                        <div>
-                          {/* Image with zoom on click */}
-                          <div
-                            onClick={() => setLightboxImg(item.imageUrl)}
-                            className="w-full aspect-square rounded-md overflow-hidden bg-[#161616] border border-[#2a2a2a] cursor-zoom-in relative mb-3 group"
-                          >
-                            <img
-                              src={item.imageUrl}
-                              alt={item.title}
-                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                            />
-                            {isWinner && count > 0 && (
-                              <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-[#c8a065] text-[#0a0a0a] text-[10px] font-bold tracking-wider uppercase shadow">
-                                Favorit
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Title */}
-                          <h4 className="font-display text-base text-[#e8e4de] font-medium leading-snug mb-2">
-                            {item.title}
-                          </h4>
-                        </div>
-
-                        <div>
-                          {/* Vote Bar */}
-                          <div className="w-full bg-[#1c1c1c] rounded-full h-2 overflow-hidden mb-2">
-                            <div
-                              className="bg-[#c8a065] h-full transition-all duration-700 rounded-full"
-                              style={{ width: `${percent}%` }}
-                            />
-                          </div>
-
-                          <div className="flex items-center justify-between text-xs text-[#6b6560] mb-3">
-                            <span>{count} {count === 1 ? 'Stimme' : 'Stimmen'}</span>
-                            <span className="font-mono text-[#c8a065]">{percent}%</span>
-                          </div>
-
-                          {/* Voters Tags */}
-                          <div className="flex flex-wrap gap-1.5 pt-2 border-t border-[#181818]">
-                            {voters.length > 0 ? (
-                              voters.map(v => {
-                                const name = getMemberName(v.member_id)
-                                const isMe = currentMember && v.member_id === currentMember.id
-                                return (
-                                  <span
-                                    key={v.id}
-                                    className="px-2 py-0.5 rounded border border-[#c8a065]/40 bg-[#c8a065]/10 text-[11px] tracking-wide text-[#e8e4de]"
-                                  >
-                                    {name} {isMe && <span className="text-[#c8a065]">(Du)</span>}
-                                  </span>
-                                )
-                              })
-                            ) : (
-                              <span className="text-[11px] text-[#444] italic">Niemand</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })()}
-        </div>
-      ) : isPulse ? (
-        /* 2. SPECIAL CASE: PULSE REVEAL */
-        <div className="flex-1 flex flex-col items-center justify-center text-center animate-fade-up my-6">
-          <div className="relative w-36 h-36 flex items-center justify-center mb-6">
-            <div className="absolute inset-0 rounded-full border border-[#c8a065]/20 animate-ripple" />
-            <div className="absolute inset-0 rounded-full border border-[#c8a065]/40 animate-ripple-2" />
-            <div className="absolute inset-0 rounded-full border border-[#c8a065]/60 animate-ripple-3" />
-            <div className="w-20 h-20 rounded-full border border-[#c8a065] flex items-center justify-center bg-[#c8a065]/10 animate-breathe">
-              <span className="font-display text-3xl text-[#c8a065]">∿</span>
+              ))}
             </div>
           </div>
-
-          <h3 className="font-display text-2xl text-[#e8e4de] mb-2">Gemeinsame Resonanz</h3>
-          <p className="text-xs tracking-[0.2em] uppercase text-[#6b6560] max-w-xs mb-6">
-            Eure Berührungen haben einander über die Distanz erreicht.
-          </p>
-
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {responses.map(resp => (
-              <span
-                key={resp.id}
-                className="px-3 py-1 border border-[#c8a065]/40 text-xs tracking-[0.15em] text-[#c8a065] rounded-full bg-[#c8a065]/5"
-              >
-                ● {getMemberName(resp.member_id)}
-              </span>
-            ))}
-          </div>
         </div>
-      ) : isSilence ? (
-        /* 3. SPECIAL CASE: SILENCE REVEAL */
-        <div className="flex-1 flex flex-col items-center justify-center text-center animate-fade-up my-6">
-          <div className="w-20 h-20 rounded-full border border-[#c8a065]/40 flex items-center justify-center mb-6 animate-breathe bg-[#c8a065]/5">
-            <span className="font-display text-3xl text-[#c8a065]">∿</span>
+      )}
+
+      {/* =================================================================== */}
+      {/* BLIND GUESSING SCORE BANNER (Once Unveiled)                         */}
+      {/* =================================================================== */}
+      {supportsBlindGuessing && isUnveiled && (
+        <div className="glass-card-amber rounded-2xl p-4 flex items-center justify-between animate-scale-in">
+          <div>
+            <span className="text-[10px] uppercase tracking-[0.22em] block" style={{ color: '#d4a359' }}>
+              Dein Menschenkenner-Score
+            </span>
+            <p className="font-display text-2xl font-light mt-0.5" style={{ color: '#f2efe9' }}>
+              {guessStats.correct} von {guessStats.total} richtig zugeordnet
+            </p>
           </div>
-          <h3 className="font-display text-2xl text-[#e8e4de] mb-2">Gemeinsame Stille</h3>
-          <p className="text-xs tracking-[0.2em] uppercase text-[#6b6560] max-w-xs mb-6">
-            Einen gemeinsamen Moment innegehalten.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {responses.map(resp => (
-              <span
-                key={resp.id}
-                className="px-3 py-1 border border-[#2a2a2a] text-xs tracking-[0.15em] text-[#e8e4de] rounded-full"
-              >
-                {getMemberName(resp.member_id)} ✓
-              </span>
-            ))}
-          </div>
+          <span className="text-3xl">
+            {guessStats.correct === guessStats.total ? '🎯' : guessStats.correct > 0 ? '✨' : '🙈'}
+          </span>
         </div>
-      ) : (
-        /* 4. STANDARD REVEAL: TEXT, PHOTO, DRAW, CHOICE */
-        <div className="flex flex-col gap-6 flex-1">
-          {responses.map(response => {
-            const isImage = response.content.startsWith('data:image/')
-            const isMyResponse = currentMember && response.member_id === currentMember.id
-            const trueAuthorName = getMemberName(response.member_id)
-            const currentGuess = guesses[response.id]
-            const guessedAuthorName = currentGuess ? getMemberName(currentGuess) : null
-            const wasGuessedCorrectly = currentGuess === response.member_id
-            const isUndercoverResponse = isUndercover && glitch && response.member_id === glitch.memberId
+      )}
+
+      {/* =================================================================== */}
+      {/* UNDERCOVER DOSSIER BANNER (Once Unveiled)                           */}
+      {/* =================================================================== */}
+      {supportsUndercoverVoting && isUnveiled && undercover && (
+        <div className="glass-card-danger rounded-2xl p-5 space-y-2.5 animate-scale-in">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-[0.22em] font-semibold" style={{ color: '#e05a47' }}>
+              🕵️ Tarnung aufgeflogen!
+            </span>
+            <span
+              className="text-[11px] font-medium px-2.5 py-0.5 rounded-full"
+              style={{
+                background:
+                  suspectMemberId === undercover.memberId
+                    ? 'rgba(73, 184, 130, 0.2)'
+                    : 'rgba(224, 90, 71, 0.2)',
+                color: suspectMemberId === undercover.memberId ? '#49b882' : '#f0b8b0',
+              }}
+            >
+              {undercover.memberId === currentMember?.id
+                ? 'Du warst der Maulwurf!'
+                : suspectMemberId === undercover.memberId
+                ? '✓ Du hast den Maulwurf enttarnt!'
+                : '✗ Du wurdest getäuscht!'}
+            </span>
+          </div>
+          <p className="font-display text-2xl" style={{ color: '#f2efe9' }}>
+            <strong>{getMemberName(undercover.memberId, undercover.memberName)}</strong> war Undercover.
+          </p>
+          <p className="text-xs leading-relaxed" style={{ color: '#f0b8b0' }}>
+            Geheimer Sabotage-Auftrag: „{undercover.prompt}“
+          </p>
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* RESPONSE CARDS (Blind-Beichte, 35s-Blindfunk, Foto, Sabotage)       */}
+      {/* =================================================================== */}
+      {!isSpectrum && !isChallenge && (
+        <div className="space-y-4">
+          {!isUnveiled && supportsBlindGuessing && (
+            <p className="text-center text-xs uppercase tracking-[0.2em]" style={{ color: '#d4a359' }}>
+              Ordne zu: Wer aus der Runde steckt hinter welcher Karte?
+            </p>
+          )}
+          {!isUnveiled && supportsUndercoverVoting && (
+            <p className="text-center text-xs uppercase tracking-[0.2em]" style={{ color: '#e05a47' }}>
+              Verhör: Tippe auf die Person, die heute heimlich sabotiert hat!
+            </p>
+          )}
+
+          {responses.map((r, idx) => {
+            const isMine = r.member_id === currentUserId
+            const authorName = getMemberName(r.member_id, r.members?.name)
+            const isImage = (r.content || '').startsWith('data:image/')
+            const guessedMemberId = guesses[r.id]
+            const isCorrectGuess = guessedMemberId === r.member_id
+            const isActualMole = isUndercover && undercover?.memberId === r.member_id
+            const isSuspectedByMe = !isMine && suspectMemberId === r.member_id
+            const cardReactions = reactionsMap[r.id] || []
+
+            // Who voted for this person in Undercover mode?
+            const votersForThisCard = Object.entries(votesMap)
+              .filter(([, targetId]) => targetId === r.member_id)
+              .map(([voterId]) => getMemberName(voterId))
 
             return (
               <div
-                key={response.id}
-                className="p-6 border transition-all duration-500 rounded-sm relative overflow-hidden"
+                key={r.id}
+                onClick={() => {
+                  if (!isUnveiled && supportsUndercoverVoting && !isMine) {
+                    setSuspectMemberId(r.member_id)
+                  }
+                }}
+                className={`rounded-2xl p-5 transition-all space-y-3.5 ${
+                  !isUnveiled && supportsUndercoverVoting && !isMine ? 'cursor-pointer' : ''
+                }`}
                 style={{
-                  borderColor: isUnveiled && isUndercover && isUndercoverResponse
-                    ? 'rgba(200,160,101,0.7)'
-                    : isUnveiled && wasGuessedCorrectly
-                    ? 'rgba(200,160,101,0.5)'
-                    : '#1e1e1e',
-                  background: isUnveiled && isUndercover && isUndercoverResponse
-                    ? 'rgba(200,160,101,0.06)'
-                    : isUnveiled && wasGuessedCorrectly
-                    ? 'rgba(200,160,101,0.03)'
-                    : '#0d0d0d',
+                  background:
+                    isUnveiled && isActualMole
+                      ? 'rgba(224, 90, 71, 0.12)'
+                      : isSuspectedByMe && !isUnveiled
+                      ? 'rgba(224, 90, 71, 0.14)'
+                      : 'rgba(19, 19, 24, 0.88)',
+                  border:
+                    isUnveiled && isActualMole
+                      ? '1px solid rgba(224, 90, 71, 0.55)'
+                      : isSuspectedByMe && !isUnveiled
+                      ? '1px solid rgba(224, 90, 71, 0.65)'
+                      : isMine
+                      ? '1px solid rgba(212, 163, 89, 0.35)'
+                      : '1px solid rgba(255, 255, 255, 0.08)',
                 }}
               >
-                {/* Author Status Header */}
-                <div className="flex items-center justify-between mb-3 border-b border-[#181818] pb-2.5">
-                  {!isUnveiled ? (
-                    isMyResponse ? (
-                      <span className="text-xs tracking-[0.2em] uppercase text-[#c8a065] font-medium flex items-center gap-1.5">
-                        <span>●</span> Deine Schöpfung
-                      </span>
-                    ) : (
-                      <span className="text-xs tracking-[0.2em] uppercase text-[#736d65] font-light flex items-center gap-1.5">
-                        <span className="text-[#c8a065]">?</span> Unbekannte Präsenz
-                      </span>
-                    )
-                  ) : isUndercover ? (
+                {/* Card Header */}
+                <div className="flex items-center justify-between gap-2">
+                  {isUnveiled || isUndercover || isMine ? (
                     <div className="flex items-center gap-2">
-                      {isUndercoverResponse ? (
-                        <span className="text-xs tracking-[0.2em] uppercase text-[#c8a065] font-bold flex items-center gap-1.5">
-                          <span>🕵️</span> DIE UNDERCOVER-TARNUNG
-                        </span>
-                      ) : (
-                        <span className="text-xs tracking-[0.2em] uppercase text-[#736d65] font-medium flex items-center gap-1.5">
-                          <span>✓</span> Echte Antwort
+                      <span
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold"
+                        style={{
+                          background: isActualMole && isUnveiled ? '#e05a47' : '#d4a359',
+                          color: '#070709',
+                        }}
+                      >
+                        {authorName.slice(0, 1).toUpperCase()}
+                      </span>
+                      <span className="text-xs font-semibold tracking-wider uppercase" style={{ color: '#f2efe9' }}>
+                        {authorName} {isMine ? '(Du)' : ''}
+                      </span>
+                      {isUnveiled && isActualMole && (
+                        <span
+                          className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold"
+                          style={{ background: 'rgba(224, 90, 71, 0.25)', color: '#e05a47' }}
+                        >
+                          🕵️ Maulwurf
                         </span>
                       )}
-                      <span className="text-xs tracking-[0.2em] uppercase text-[#a09990]">
-                        · {trueAuthorName} {isMyResponse && '(Du)'}
-                      </span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs tracking-[0.2em] uppercase text-[#c8a065] font-semibold">
-                        {trueAuthorName}
-                      </span>
-                      {isMyResponse && (
-                        <span className="text-[10px] tracking-wider uppercase text-[#6b6560]">
-                          (Du)
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Guess Tag in Header */}
-                  {isUnveiled && !isUndercover && !isMyResponse && currentGuess && (
-                    <span
-                      className={`text-[10px] tracking-wider uppercase px-2 py-0.5 rounded border ${
-                        wasGuessedCorrectly
-                          ? 'border-[#c8a065] text-[#c8a065] bg-[#c8a065]/10'
-                          : 'border-[#444] text-[#888]'
-                      }`}
-                    >
-                      {wasGuessedCorrectly
-                        ? '✓ Intuition bestätigt'
-                        : `✕ Getippt: ${guessedAuthorName}`}
+                    <span className="text-xs uppercase tracking-[0.2em]" style={{ color: '#7c766e' }}>
+                      🔒 Versiegelter Beitrag #{idx + 1}
                     </span>
                   )}
 
-                  {isImage && (
-                    <span className="text-[10px] tracking-wider text-[#6b6560] uppercase">
-                      Tippen zum Vergrößern
+                  {/* Guess Accuracy Badge */}
+                  {isUnveiled && supportsBlindGuessing && !isMine && (
+                    <span
+                      className="text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full font-medium"
+                      style={{
+                        background: isCorrectGuess
+                          ? 'rgba(73, 184, 130, 0.16)'
+                          : 'rgba(224, 90, 71, 0.15)',
+                        color: isCorrectGuess ? '#49b882' : '#e05a47',
+                      }}
+                    >
+                      {isCorrectGuess
+                        ? '✓ Richtig getippt'
+                        : `Dein Tipp: ${getMemberName(guessedMemberId)}`}
+                    </span>
+                  )}
+
+                  {/* Undercover Accusation Selection Indicator (Only for other members!) */}
+                  {!isUnveiled && supportsUndercoverVoting && !isMine && (
+                    <span
+                      className="text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full font-medium"
+                      style={{
+                        background: isSuspectedByMe
+                          ? '#e05a47'
+                          : 'rgba(255,255,255,0.06)',
+                        color: isSuspectedByMe ? '#070709' : '#9c958c',
+                      }}
+                    >
+                      {isSuspectedByMe ? '🎯 Dein Verdacht' : 'Verdächtigen'}
                     </span>
                   )}
                 </div>
 
-                {/* Content */}
+                {/* Card Content */}
                 {isImage ? (
-                  <div
-                    onClick={() => setLightboxImg(response.content)}
-                    className="w-full aspect-square max-w-[320px] mx-auto rounded overflow-hidden border border-[#2a2a2a] hover:border-[#c8a065] transition-colors cursor-zoom-in my-2"
-                  >
+                  <div className="flex justify-center py-2">
                     <img
-                      src={response.content}
-                      alt="Kreation"
-                      className={`w-full h-full ${
-                        wave.prompt_type === 'draw'
-                          ? 'object-contain bg-[#0a0a0a]'
-                          : 'object-cover'
-                      }`}
+                      src={r.content}
+                      alt={isPhoto ? 'Schnappschuss' : 'Skizze'}
+                      onClick={e => {
+                        e.stopPropagation()
+                        setLightboxImg(r.content)
+                      }}
+                      className={`w-full max-w-[280px] aspect-square ${
+                        isPhoto ? 'object-cover' : 'object-contain'
+                      } rounded-2xl border cursor-zoom-in transition-transform hover:scale-[1.02]`}
+                      style={{
+                        background: '#09090c',
+                        borderColor: 'rgba(255,255,255,0.12)',
+                      }}
                     />
                   </div>
                 ) : (
                   <p
-                    className="text-lg leading-relaxed font-display font-light my-2"
-                    style={{ color: '#e8e4de' }}
+                    className="font-display text-2xl font-light leading-relaxed"
+                    style={{ color: '#f2efe9' }}
                   >
-                    {wave.prompt_type === 'choice' ? `„${response.content}“` : response.content}
+                    „{r.content}“
                   </p>
                 )}
 
-                {/* Undercover Blind Guessing: Verdächtigen als Tarnung */}
-                {!isUnveiled && isUndercover && !isMyResponse && (
-                  <div className="mt-4 pt-3 border-t border-[#1a1a1a]">
-                    <button
-                      onClick={() =>
-                        setSuspectedResponseId(prev => prev === response.id ? null : response.id)
-                      }
-                      className={`w-full py-2.5 px-3 rounded text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-2 border ${
-                        suspectedResponseId === response.id
-                          ? 'bg-[#c8a065] text-[#0a0a0a] font-semibold border-[#c8a065] shadow-[0_0_15px_rgba(200,160,101,0.3)]'
-                          : 'bg-[#121212] text-[#a09990] border-[#222] hover:border-[#c8a065]/50 hover:text-[#e8e4de]'
-                      }`}
-                    >
-                      <span>🕵️</span>
-                      {suspectedResponseId === response.id
-                        ? 'Als Tarnung verdächtigt ✓'
-                        : 'Als getarnte Mission verdächtigen'}
-                    </button>
-                  </div>
-                )}
-
-                {/* Blind Guessing Selector (Only while veiled, only for normal waves) */}
-                {!isUnveiled && !isUndercover && !isMyResponse && otherMembers.length > 0 && (
-                  <div className="mt-4 pt-3 border-t border-[#1a1a1a]">
-                    <span className="block text-[10px] tracking-[0.2em] uppercase text-[#6b6560] mb-2">
-                      Wer hat das geschaffen?
+                {/* Blind Guessing Selector Chips (Before Unveil) */}
+                {!isUnveiled && supportsBlindGuessing && !isMine && (
+                  <div className="pt-2 border-t border-white/5 space-y-2">
+                    <span className="text-[10px] uppercase tracking-[0.18em] block" style={{ color: '#7c766e' }}>
+                      Wer war das?
                     </span>
                     <div className="flex flex-wrap gap-2">
                       {otherMembers.map(m => {
-                        const isChosen = currentGuess === m.id
+                        const selected = guesses[r.id] === m.id
                         return (
                           <button
                             key={m.id}
+                            type="button"
                             onClick={() =>
-                              setGuesses(prev => ({
-                                ...prev,
-                                [response.id]: isChosen ? '' : m.id,
-                              }))
+                              setGuesses(prev => ({ ...prev, [r.id]: m.id }))
                             }
-                            className={`px-3 py-1.5 text-xs tracking-wider rounded-sm border transition-all ${
-                              isChosen
-                                ? 'border-[#c8a065] bg-[#c8a065]/15 text-[#e8e4de] shadow-[0_0_8px_rgba(200,160,101,0.25)]'
-                                : 'border-[#222] bg-[#121212] text-[#888] hover:border-[#333]'
-                            }`}
+                            className="px-3.5 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer"
+                            style={{
+                              background: selected ? '#d4a359' : 'rgba(255,255,255,0.05)',
+                              color: selected ? '#070709' : '#d8d3cb',
+                              border: selected
+                                ? '1px solid #d4a359'
+                                : '1px solid rgba(255,255,255,0.1)',
+                            }}
                           >
                             {m.name}
                           </button>
@@ -701,89 +838,200 @@ export default function RevealScreen({
                     </div>
                   </div>
                 )}
+
+                {/* Undercover Voters Display (Once Unveiled) */}
+                {isUnveiled && isUndercover && votersForThisCard.length > 0 && (
+                  <div className="text-[11px]" style={{ color: '#9c958c' }}>
+                    🕵️ Verdächtigt von: <strong>{votersForThisCard.join(', ')}</strong>
+                  </div>
+                )}
+
+                {/* Live Spark Reactions Bar (Once Unveiled) */}
+                {isUnveiled && (
+                  <div className="pt-2.5 border-t border-white/5 flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      {SPARK_EMOJIS.map(emoji => {
+                        const myActive = cardReactions.some(
+                          rx => rx.memberId === currentUserId && rx.emoji === emoji
+                        )
+                        return (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation()
+                              handleToggleReaction(r.id, emoji)
+                            }}
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-sm transition-transform active:scale-125 cursor-pointer"
+                            style={{
+                              background: myActive
+                                ? 'rgba(212, 163, 89, 0.25)'
+                                : 'rgba(255,255,255,0.04)',
+                              border: myActive
+                                ? '1px solid rgba(212, 163, 89, 0.6)'
+                                : '1px solid rgba(255,255,255,0.07)',
+                            }}
+                          >
+                            {emoji}
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {cardReactions.length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {cardReactions.map((rx, i) => (
+                          <span
+                            key={i}
+                            className="text-[11px] px-2 py-0.5 rounded-full"
+                            style={{
+                              background: 'rgba(255,255,255,0.06)',
+                              color: '#d8d3cb',
+                            }}
+                          >
+                            {rx.emoji} {rx.memberName}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}
 
-          {/* Button to Unveil the Veil */}
-          {(supportsBlindGuessing || supportsUndercoverVoting) && !isUnveiled && (
+          {/* Action Button to Unveil Guesses or Undercover Vote */}
+          {!isUnveiled && supportsBlindGuessing && (
             <button
-              onClick={() => setIsUnveiled(true)}
-              className="mt-4 py-4 w-full text-center text-sm tracking-[0.25em] uppercase border border-[#c8a065] text-[#0a0a0a] bg-[#c8a065] hover:bg-[#d8b075] transition-all shadow-[0_0_20px_rgba(200,160,101,0.2)] font-semibold rounded-sm"
+              type="button"
+              onClick={handleUnveilBlindGuesses}
+              disabled={!allGuessed}
+              className="w-full py-4 rounded-2xl text-xs uppercase tracking-[0.22em] font-semibold transition-all cursor-pointer disabled:opacity-30"
+              style={{
+                background: allGuessed ? '#d4a359' : '#1b1b22',
+                color: allGuessed ? '#070709' : '#7c766e',
+                boxShadow: allGuessed
+                  ? '0 10px 30px -8px rgba(212, 163, 89, 0.5)'
+                  : 'none',
+              }}
             >
-              {isUndercover ? 'Schleier lüften & Chamäleon auflösen →' : 'Schleier lüften & Auflösen →'}
+              {allGuessed
+                ? 'Tipps einloggen & Autoren enthüllen ∿'
+                : 'Ordne erst allen Karten einen Namen zu'}
             </button>
+          )}
+
+          {!isUnveiled && supportsUndercoverVoting && (
+            <div className="space-y-3 pt-1">
+              <div className="glass-card rounded-2xl p-4 space-y-2.5">
+                <span className="text-[10px] uppercase tracking-[0.2em] block text-center" style={{ color: '#e05a47' }}>
+                  Wen aus der Runde klagst du als Maulwurf an?
+                </span>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {otherMembers.map(m => {
+                    const selected = suspectMemberId === m.id
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setSuspectMemberId(m.id)}
+                        className="px-4 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer"
+                        style={{
+                          background: selected ? '#e05a47' : 'rgba(255,255,255,0.05)',
+                          color: selected ? '#070709' : '#f2efe9',
+                          border: selected
+                            ? '1px solid #e05a47'
+                            : '1px solid rgba(255,255,255,0.12)',
+                        }}
+                      >
+                        🎯 {m.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleConfirmUndercoverVote}
+                disabled={!suspectMemberId}
+                className="w-full py-4 rounded-2xl text-xs uppercase tracking-[0.22em] font-semibold transition-all cursor-pointer disabled:opacity-30"
+                style={{
+                  background: suspectMemberId ? '#e05a47' : '#1b1b22',
+                  color: suspectMemberId ? '#070709' : '#7c766e',
+                  boxShadow: suspectMemberId
+                    ? '0 10px 30px -8px rgba(224, 90, 71, 0.5)'
+                    : 'none',
+                }}
+              >
+                {suspectMemberId
+                  ? 'Anklage erheben & Maulwurf enttarnen 🕵️'
+                  : 'Wähle oben einen Verdächtigen aus'}
+              </button>
+            </div>
           )}
         </div>
       )}
 
-      {/* Intuition Result Score Banner */}
-      {score && score.attempted > 0 && (
-        <div className="my-6 p-4 border border-[#c8a065]/40 bg-[#c8a065]/5 rounded-sm animate-fade-in text-center">
-          <div className="text-[11px] tracking-[0.25em] uppercase text-[#c8a065] mb-1 font-medium">
-            ✦ Resonanz-Intuition
-          </div>
-          <p className="text-sm text-[#e8e4de]">
-            {score.correct === score.total ? (
-              <span>Vollkommener Gleichklang: {score.correct} von {score.total} Seelen erkannt!</span>
-            ) : score.correct > 0 ? (
-              <span>{score.correct} von {score.attempted} Zuordnungen durchschaut.</span>
-            ) : (
-              <span>Kein Treffer – eure Freunde haben euch heute überrascht.</span>
-            )}
-          </p>
-        </div>
-      )}
-
-      {/* Oracle Echo Section (Appears after unveiling or on special waves) */}
-      {isUnveiled && (echo || loadingEcho) && (
-        <div className="my-8 p-6 rounded-sm border border-[#2a2a2a] bg-[#0e0e0e] shadow-2xl relative overflow-hidden animate-fade-up">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[#c8a065]/5 rounded-full blur-2xl pointer-events-none" />
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-xs text-[#c8a065] animate-pulse">🔮</span>
-            <span className="text-[11px] tracking-[0.3em] uppercase text-[#c8a065] font-semibold">
-              Echo der Welle
+      {/* =================================================================== */}
+      {/* DAS KI-ECHO DER WELLE                                               */}
+      {/* =================================================================== */}
+      {isUnveiled && (
+        <div className="glass-card-amber rounded-2xl p-6 text-center space-y-2.5 animate-fade-up">
+          <div className="flex items-center justify-center gap-2">
+            <span style={{ color: '#d4a359' }}>∿</span>
+            <span className="text-[10px] uppercase tracking-[0.25em] font-semibold" style={{ color: '#d4a359' }}>
+              Das Echo der Runde
             </span>
+            <span style={{ color: '#d4a359' }}>∿</span>
           </div>
 
-          {loadingEcho && !echo ? (
-            <div className="flex items-center gap-3 py-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#c8a065] animate-breathe" />
-              <p className="text-xs text-[#6b6560] italic">
-                Die Welle lauscht euren Antworten und formt das Echo...
-              </p>
-            </div>
-          ) : (
-            <p className="font-display text-base md:text-lg italic text-[#e8e4de] leading-relaxed">
+          {echo ? (
+            <p className="font-display italic text-xl sm:text-2xl leading-relaxed" style={{ color: '#f2efe9' }}>
               „{echo}“
+            </p>
+          ) : (
+            <p className="text-xs uppercase tracking-[0.2em] animate-pulse py-2" style={{ color: '#9c958c' }}>
+              Resonanz wird aus euren Antworten destilliert...
             </p>
           )}
         </div>
       )}
 
+      {/* =================================================================== */}
+      {/* CONTINUE TO NEXT CYCLE BUTTON                                       */}
+      {/* =================================================================== */}
+      {isUnveiled && (
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={onComplete}
+            className="w-full py-4 rounded-2xl text-xs uppercase tracking-[0.22em] font-semibold transition-all cursor-pointer active:scale-98"
+            style={{
+              background: 'rgba(212, 163, 89, 0.16)',
+              border: '1px solid rgba(212, 163, 89, 0.5)',
+              color: '#d4a359',
+            }}
+          >
+            Welle abschließen & Nächsten Zyklus starten →
+          </button>
+        </div>
+      )}
 
-      {/* Lightbox Modal */}
+      {/* Lightbox Modal for Drawings */}
       {lightboxImg && (
         <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-6"
+          style={{ background: 'rgba(4,4,6,0.9)', backdropFilter: 'blur(12px)' }}
           onClick={() => setLightboxImg(null)}
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out animate-fade-in"
         >
           <img
             src={lightboxImg}
             alt="Vollbild"
-            className="max-w-full max-h-[85vh] object-contain rounded border border-[#c8a065]/40 shadow-2xl"
+            className="max-w-full max-h-[80vh] rounded-2xl border"
+            style={{ borderColor: 'rgba(212,163,89,0.4)', background: '#09090c' }}
           />
         </div>
-      )}
-
-      {/* Done button (only visible when unveiled) */}
-      {isUnveiled && (
-        <button
-          onClick={onComplete}
-          className="mt-8 py-4 text-center text-sm tracking-[0.25em] uppercase transition-all border border-[#c8a065] text-[#c8a065] hover:bg-[#c8a065]/10 animate-fade-up font-medium"
-        >
-          Weiter zur Ruhephase →
-        </button>
       )}
     </div>
   )

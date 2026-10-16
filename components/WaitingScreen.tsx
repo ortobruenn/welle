@@ -1,8 +1,8 @@
 'use client'
 
 import type { Wave, Member, WaveResponse } from '@/lib/types'
-import { extractVibeOptions } from '@/lib/mystery'
-import PushBell from './PushBell'
+import { parseSpectrumResponse, parseChallengeResponse } from '@/lib/mystery'
+import WaveVisualizer from './WaveVisualizer'
 
 interface Props {
   wave: Wave
@@ -12,140 +12,147 @@ interface Props {
   userResponse: WaveResponse | null
 }
 
-export default function WaitingScreen({ wave, responses, totalMembers, userResponse }: Props) {
-  const responded = responses.length
-  const remaining = totalMembers - responded
+export default function WaitingScreen({
+  wave,
+  responses,
+  members,
+  totalMembers,
+  userResponse,
+}: Props) {
+  const respondedIds = new Set(responses.map(r => r.member_id))
+  const respondedCount = responses.length
+  const remaining = Math.max(0, totalMembers - respondedCount)
+
+  const isSpectrum = wave.prompt_type === 'spectrum'
+  const isChallenge =
+    wave.prompt_type === 'memory' ||
+    wave.prompt_type === 'logic' ||
+    wave.prompt_type === 'scramble'
+  const specData =
+    isSpectrum && userResponse ? parseSpectrumResponse(userResponse.content) : null
+  const challengeData =
+    isChallenge && userResponse ? parseChallengeResponse(userResponse.content) : null
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center px-8 relative"
-      style={{ background: '#0a0a0a' }}
-    >
-      {/* Top Header */}
-      <div className="absolute top-10 left-8 right-8 flex items-center justify-between">
-        <span className="text-xs tracking-[0.3em] uppercase" style={{ color: '#6b6560' }}>
-          Welle {wave.number}
-        </span>
-        <PushBell memberId={userResponse?.member_id} />
+    <div className="flex-1 flex flex-col items-center justify-between px-5 pb-10 pt-4 max-w-xl mx-auto w-full">
+      {/* Top Visualizer */}
+      <div className="w-full space-y-2">
+        <WaveVisualizer variant="calm" intensity={0.75} height={56} />
+        <p className="text-center text-[11px] uppercase tracking-[0.25em]" style={{ color: '#7c766e' }}>
+          Synchroner Warteraum · {respondedCount} von {totalMembers} versiegelt
+        </p>
       </div>
 
-      {/* Symbol */}
-      <div
-        className="font-display text-5xl font-light mb-16 animate-breathe"
-        style={{ color: '#c8a065' }}
-      >
-        ∿
-      </div>
+      {/* Center: Prompt & Live Member Orbs */}
+      <div className="my-auto py-6 w-full space-y-8 text-center animate-fade-up">
+        <div className="space-y-2 px-3">
+          <span className="text-xs uppercase tracking-[0.2em]" style={{ color: '#d4a359' }}>
+            Welle #{wave.number}
+          </span>
+          <h2 className="font-display text-2xl sm:text-3xl font-light leading-snug" style={{ color: '#f2efe9' }}>
+            {wave.prompt}
+          </h2>
+        </div>
 
-      {/* Dots */}
-      <div className="flex gap-4 mb-16">
-        {Array.from({ length: totalMembers }).map((_, i) => (
-          <div
-            key={i}
-            className="w-3 h-3 rounded-full transition-all duration-700"
-            style={{
-              background: i < responded ? '#c8a065' : 'transparent',
-              border: `1.5px solid ${i < responded ? '#c8a065' : '#2a2a2a'}`,
-            }}
-          />
-        ))}
-      </div>
+        {/* Member Constellation */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-md mx-auto">
+          {members.map(m => {
+            const isDone = respondedIds.has(m.id)
+            return (
+              <div
+                key={m.id}
+                className="p-3.5 rounded-2xl flex flex-col items-center gap-2 transition-all duration-500"
+                style={{
+                  background: isDone ? 'rgba(212, 163, 89, 0.11)' : 'rgba(255,255,255,0.025)',
+                  border: isDone
+                    ? '1px solid rgba(212, 163, 89, 0.45)'
+                    : '1px solid rgba(255,255,255,0.07)',
+                }}
+              >
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold relative"
+                  style={{
+                    background: isDone ? '#d4a359' : 'rgba(255,255,255,0.06)',
+                    color: isDone ? '#070709' : '#7c766e',
+                    boxShadow: isDone ? '0 0 18px rgba(212, 163, 89, 0.4)' : 'none',
+                  }}
+                >
+                  {m.name.slice(0, 1).toUpperCase()}
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium truncate max-w-[100px]" style={{ color: '#f2efe9' }}>
+                    {m.name}
+                  </p>
+                  <p
+                    className="text-[10px] uppercase tracking-wider"
+                    style={{ color: isDone ? '#49b882' : '#7c766e' }}
+                  >
+                    {isDone ? '✓ Versiegelt' : 'Offen...'}
+                  </p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
 
-      {/* Status text */}
-      <div className="text-center animate-fade-in">
-        {remaining === 0 ? (
-          <p className="text-sm tracking-[0.2em] uppercase" style={{ color: '#c8a065' }}>
-            enthüllung folgt
-          </p>
-        ) : (
-          <>
-            <p
-              className="font-display text-5xl font-light mb-4"
-              style={{ color: '#e8e4de' }}
-            >
-              {remaining}
+        {/* Status Message */}
+        <div className="space-y-2">
+          {remaining === 0 ? (
+            <p className="text-xs uppercase tracking-[0.25em] animate-pulse" style={{ color: '#d4a359' }}>
+              Alle sind da · Enthüllung öffnet sich...
             </p>
-            <p className="text-xs tracking-[0.25em] uppercase" style={{ color: '#6b6560' }}>
-              {remaining === 1 ? 'wartet noch' : 'warten noch'}
+          ) : (
+            <p className="text-xs" style={{ color: '#7c766e' }}>
+              Sobald {remaining === 1 ? 'die letzte Person antwortet' : `die letzten ${remaining} Personen antworten`}, bricht das Siegel für alle gleichzeitig auf.
             </p>
-          </>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* User's own response preview */}
+      {/* User's Own Sealed Response Preview */}
       {userResponse && (
-        <div
-          className="mt-16 w-full max-w-xs p-5 border animate-fade-up"
-          style={{
-            borderColor: '#1e1e1e',
-            background: '#0f0f0f',
-            borderRadius: 2,
-          }}
-        >
-          <p className="text-xs tracking-[0.2em] uppercase mb-3" style={{ color: '#6b6560' }}>
-            Deine Antwort
-          </p>
-          {wave.prompt_type === 'spectrum' ? (
-            <div className="flex items-center gap-3 py-1">
-              <span className="font-display text-2xl text-[#c8a065]">⚖️</span>
-              <p className="text-sm text-[#e8e4de]">
-                Position im Spektrum eingeprägt.
-              </p>
+        <div className="w-full max-w-md glass-card rounded-2xl p-4 animate-fade-up">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] uppercase tracking-[0.22em]" style={{ color: '#d4a359' }}>
+              🔒 Dein hinterlegter Beitrag
+            </span>
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: '#49b882' }}>
+              Sicher verwahrt
+            </span>
+          </div>
+
+          {isChallenge && challengeData ? (
+            <div className="flex items-center justify-between text-xs pt-1" style={{ color: '#f2efe9' }}>
+              <span className="font-medium" style={{ color: challengeData.passed ? '#49b882' : '#e05a47' }}>
+                {challengeData.passed ? '🏆 Geschafft' : '🩹 Trostpflaster'}
+              </span>
+              <span>{challengeData.detail}</span>
             </div>
-          ) : wave.prompt_type === 'pulse' ? (
-            <div className="flex items-center gap-3 py-1">
-              <span className="font-display text-2xl text-[#c8a065] animate-breathe">∿</span>
-              <p className="text-sm text-[#e8e4de]">
-                Dein Puls wurde übertragen.
-              </p>
-            </div>
-          ) : wave.prompt_type === 'silence' ? (
-            <div className="flex items-center gap-3 py-1">
-              <span className="font-display text-2xl text-[#c8a065]">🧘</span>
-              <p className="text-sm text-[#e8e4de]">
-                Stiller Moment vollzogen.
-              </p>
-            </div>
-          ) : wave.prompt_type === 'vibe' ? (
-            <div className="flex flex-col gap-2 my-1">
-              <p className="text-base font-display text-[#c8a065]">„{userResponse.content}“</p>
-              {(() => {
-                const vibeItem = extractVibeOptions(wave.options)?.find(
-                  v => v.title === userResponse.content || v.id === userResponse.content
-                )
-                if (!vibeItem?.imageUrl) return null
-                return (
-                  <div className="w-full aspect-video rounded overflow-hidden border border-[#2a2a2a] bg-[#141414]">
-                    <img src={vibeItem.imageUrl} alt={vibeItem.title} className="w-full h-full object-cover" />
-                  </div>
-                )
-              })()}
+          ) : isSpectrum && specData ? (
+            <div className="flex items-center justify-between text-xs pt-1" style={{ color: '#f2efe9' }}>
+              <span>
+                Dein Puls: <strong>{specData.self}%</strong>
+              </span>
+              <span style={{ color: '#49b882' }}>
+                Gruppen-Tipp: <strong>{specData.guessAvg}%</strong>
+              </span>
             </div>
           ) : userResponse.content.startsWith('data:image/') ? (
-            <div className="w-full aspect-square rounded overflow-hidden border border-[#2a2a2a] my-1">
+            <div className="flex justify-center pt-1">
               <img
                 src={userResponse.content}
-                alt="Deine Kreation"
-                className={`w-full h-full ${
-                  wave.prompt_type === 'draw' ? 'object-contain bg-[#0a0a0a]' : 'object-cover'
-                }`}
+                alt="Deine Skizze"
+                className="w-28 h-28 object-contain rounded-xl border"
+                style={{ borderColor: 'rgba(255,255,255,0.1)', background: '#09090c' }}
               />
             </div>
           ) : (
-            <p className="text-base leading-relaxed" style={{ color: '#e8e4de' }}>
-              {userResponse.content}
+            <p className="font-display italic text-lg leading-snug" style={{ color: '#f2efe9' }}>
+              „{userResponse.content}“
             </p>
           )}
         </div>
       )}
-
-      {/* Wave info */}
-      <p
-        className="absolute bottom-10 text-xs tracking-[0.25em] uppercase"
-        style={{ color: '#2a2a2a' }}
-      >
-        Welle {wave.number}
-      </p>
     </div>
   )
 }

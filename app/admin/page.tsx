@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import type { Wave, Member, WaveResponse } from '@/lib/types'
-import { extractEcho, extractGlitch, attachGlitchToOptions, attachUndercoverToOptions, extractEnigma, buildEnigmaOptions, buildVibeOptions } from '@/lib/mystery'
+import type { Wave, Member, CoreWaveType } from '@/lib/types'
+import { extractEcho, extractUndercover, attachUndercoverToOptions } from '@/lib/mystery'
 
 const ADMIN_CODE = process.env.NEXT_PUBLIC_ADMIN_CODE || 'admin'
 
@@ -19,9 +19,8 @@ export default function AdminPage() {
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(false)
 
-  // New wave form
   const [newPrompt, setNewPrompt] = useState('')
-  const [newType, setNewType] = useState<Wave['prompt_type']>('text')
+  const [newType, setNewType] = useState<CoreWaveType>('text')
   const [newOptions, setNewOptions] = useState('')
   const [pushStatus, setPushStatus] = useState('')
 
@@ -31,7 +30,7 @@ export default function AdminPage() {
       const res = await fetch('/api/push/test', { method: 'POST' })
       const data = await res.json()
       if (data.success) {
-        setPushStatus(`✓ Gesendet (${data.sent} Empfänger, ${data.failed} Fehler)`)
+        setPushStatus(`✓ Gesendet (${data.sent} Empfänger)`)
       } else {
         setPushStatus(`Fehler: ${data.error}`)
       }
@@ -44,13 +43,12 @@ export default function AdminPage() {
   const fetchData = useCallback(async () => {
     const [wavesRes, membersRes] = await Promise.all([
       supabase.from('waves').select('*').order('number', { ascending: false }),
-      supabase.from('members').select('*'),
+      supabase.from('members').select('*').order('created_at', { ascending: true }),
     ])
     const waveList = (wavesRes.data || []) as Wave[]
 
-    // Get response counts
     const wavesWithCounts: WaveWithResponses[] = await Promise.all(
-      waveList.map(async (w) => {
+      waveList.map(async w => {
         const { count } = await supabase
           .from('responses')
           .select('*', { count: 'exact', head: true })
@@ -75,6 +73,21 @@ export default function AdminPage() {
     }
   }
 
+  const handleGenerateWithAI = async (forcedFormat?: CoreWaveType) => {
+    setLoading(true)
+    try {
+      await fetch('/api/generate-wave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true, forcedFormat }),
+      })
+      await fetchData()
+    } catch (e) {
+      console.error(e)
+    }
+    setLoading(false)
+  }
+
   const handleCreateWave = async () => {
     if (!newPrompt.trim()) return
     setLoading(true)
@@ -82,31 +95,20 @@ export default function AdminPage() {
     const nextNumber = waves.length > 0 ? Math.max(...waves.map(w => w.number)) + 1 : 1
     let options: string[] | null = null
 
-    if (newType === 'choice' || newType === 'spectrum') {
-      options = newOptions.split('\n').map(o => o.trim()).filter(Boolean)
-    } else if (newType === 'vibe') {
-      options = buildVibeOptions(
-        newOptions.split('\n').map(o => o.trim()).filter(Boolean).map((line, idx) => {
-          const parts = line.split('|').map(p => p.trim())
-          const title = parts[0] || `Vibe ${idx + 1}`
-          const prompt = parts[1] || `${title} funny cute cartoon character, vibrant comic illustration`
-          const seed = Math.floor(Math.random() * 80000) + 10000 + idx
-          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&nologo=true&seed=${seed}`
-          return {
-            id: `opt_${idx + 1}`,
-            title,
-            prompt,
-            imageUrl,
-          }
-        })
-      )
+    if (newType === 'spectrum') {
+      const parsed = newOptions
+        .split('\n')
+        .map(o => o.trim())
+        .filter(Boolean)
+      options = parsed.length >= 2 ? parsed.slice(0, 2) : ['0% Minimal-Modus', '100% Maximal-Ausschlag']
     } else if (newType === 'undercover' && members.length >= 2) {
       const target = members[Math.floor(Math.random() * members.length)]
       options = attachUndercoverToOptions(
         null,
         target.id,
         target.name,
-        newOptions.trim() || 'Beschreibe das Gegenteil deiner wahren Gedanken – aber tarne deinen Satz so geschickt, dass die anderen denken, du meinst die Hauptfrage!'
+        newOptions.trim() ||
+          'Schmuggle eine charmante Notlüge oder das genaue Gegenteil deiner echten Meinung ein – ohne aufzufliegen!'
       )
     }
 
@@ -125,132 +127,11 @@ export default function AdminPage() {
     setLoading(false)
   }
 
-  const handleQuickCreate = async (type: Wave['prompt_type'], prompt: string, options?: string[]) => {
-    setLoading(true)
-    const nextNumber = waves.length > 0 ? Math.max(...waves.map(w => w.number)) + 1 : 1
-    await supabase.from('waves').insert({
-      number: nextNumber,
-      prompt,
-      prompt_type: type,
-      options: options || null,
-      status: 'active',
-    })
-    await fetchData()
-    setLoading(false)
-  }
-
-  const handleQuickUndercoverCreate = async () => {
-    if (members.length === 0) return
-    setLoading(true)
-    const nextNumber = waves.length > 0 ? Math.max(...waves.map(w => w.number)) + 1 : 1
-    const target = members[Math.floor(Math.random() * members.length)]
-    const undercoverOptions = attachUndercoverToOptions(
-      null,
-      target.id,
-      target.name,
-      'Beschreibe das schäbigste Wartezimmer oder eine Amtsstube – aber tarne es geschickt, sodass alle denken, es sei dein Traum-Ort!'
-    )
-    await supabase.from('waves').insert({
-      number: nextNumber,
-      prompt: 'Was ist dein absoluter Wohlfühl- oder Traumort auf dieser Welt?',
-      prompt_type: 'undercover',
-      options: undercoverOptions,
-      status: 'active',
-    })
-    await fetchData()
-    setLoading(false)
-  }
-
-  const handleQuickEnigmaCreate = async () => {
-    setLoading(true)
-    const nextNumber = waves.length > 0 ? Math.max(...waves.map(w => w.number)) + 1 : 1
-    const enigmaOptions = buildEnigmaOptions(
-      'KOMPASS',
-      [
-        'Ich habe keine Augen und schaue stets starr nach Norden.',
-        'Inmitten tosender Stürme bleibe ich unerschütterlich ausgerichtet.',
-        'Mein Zeiger tanzt auf dem unsichtbaren Magnetfeld der Erde.',
-        'Seefahrer vertrauen mir ihr Leben und ihren Kurs an. Wer bin ich?'
-      ],
-      'Ein 7-stelliges Navigationsinstrument.'
-    )
-    await supabase.from('waves').insert({
-      number: nextNumber,
-      prompt: 'Die Welle ist in 4 Fragmente zerbrochen. Tauscht euch aus und findet das gemeinsame Lösungswort.',
-      prompt_type: 'enigma',
-      options: enigmaOptions,
-      status: 'active',
-    })
-    await fetchData()
-    setLoading(false)
-  }
-
-  const handleQuickVibeCreate = async () => {
-    setLoading(true)
-    const nextNumber = waves.length > 0 ? Math.max(...waves.map(w => w.number)) + 1 : 1
-    const vibeOptions = buildVibeOptions([
-      {
-        id: 'opt_1',
-        title: 'Zen-Faultier',
-        prompt: 'cute sleepy cartoon sloth hugging a cup of herbal tea, cozy aesthetic illustration, minimalist',
-        imageUrl: 'https://image.pollinations.ai/prompt/cute%20sleepy%20cartoon%20sloth%20hugging%20a%20cup%20of%20herbal%20tea%2C%20cozy%20aesthetic%20illustration?width=512&height=512&nologo=true&seed=42'
-      },
-      {
-        id: 'opt_2',
-        title: 'Hyperaktive Hummel',
-        prompt: 'cute energetic bee zooming with speed trails holding a tiny espresso cup, vibrant cartoon illustration',
-        imageUrl: 'https://image.pollinations.ai/prompt/cute%20energetic%20bee%20zooming%20with%20speed%20trails%20holding%20a%20tiny%20espresso%20cup%2C%20vibrant%20cartoon?width=512&height=512&nologo=true&seed=99'
-      }
-    ])
-    await supabase.from('waves').insert({
-      number: nextNumber,
-      prompt: 'Bist du heute eher das übermüdete Faultier oder die hyperaktive Hummel?',
-      prompt_type: 'vibe',
-      options: vibeOptions,
-      status: 'active',
-    })
-    await fetchData()
-    setLoading(false)
-  }
-
-  const handleGenerateWithAI = async () => {
-    setLoading(true)
-    try {
-      await fetch('/api/generate-wave', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force: true }),
-      })
-      await fetchData()
-    } catch (e) {
-      console.error(e)
-    }
-    setLoading(false)
-  }
-
   const updateWaveStatus = async (waveId: string, status: Wave['status'], extra?: Partial<Wave>) => {
     setLoading(true)
     await supabase.from('waves').update({ status, ...extra }).eq('id', waveId)
     await fetchData()
     setLoading(false)
-  }
-
-  const startReveal = async (wave: WaveWithResponses) => {
-    await updateWaveStatus(wave.id, 'reveal', { revealed_at: new Date().toISOString() })
-  }
-
-  const startCooldown = async (wave: WaveWithResponses) => {
-    const next = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-    await updateWaveStatus(wave.id, 'cooldown', { next_wave_at: next })
-  }
-
-  const endCooldownNow = async (wave: WaveWithResponses) => {
-    // Set next_wave_at to past so it ends immediately
-    await updateWaveStatus(wave.id, 'cooldown', { next_wave_at: new Date(Date.now() - 1000).toISOString() })
-  }
-
-  const activateWave = async (wave: WaveWithResponses) => {
-    await updateWaveStatus(wave.id, 'active')
   }
 
   const deleteWave = async (waveId: string) => {
@@ -261,80 +142,63 @@ export default function AdminPage() {
       await supabase.from('reveals_seen').delete().eq('wave_id', waveId)
       await supabase.from('waves').delete().eq('id', waveId)
       await fetchData()
-    } catch (e) {
-      console.error('Delete wave error:', e)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const deleteAllWaves = async () => {
-    if (!confirm(`Möchtest du wirklich ALLE ${waves.length} Wellen und alle zugehörigen Antworten löschen?`)) return
+    if (!confirm(`Möchtest du wirklich ALLE ${waves.length} Wellen löschen?`)) return
     setLoading(true)
     try {
-      const waveIds = waves.map(w => w.id)
-      if (waveIds.length > 0) {
-        await supabase.from('responses').delete().in('wave_id', waveIds)
-        await supabase.from('reveals_seen').delete().in('wave_id', waveIds)
-        await supabase.from('waves').delete().in('id', waveIds)
-      }
-      // Safety sweep in case of any orphaned records
       await supabase.from('responses').delete().neq('id', '00000000-0000-0000-0000-000000000000')
       await supabase.from('reveals_seen').delete().neq('wave_id', '00000000-0000-0000-0000-000000000000')
       await supabase.from('waves').delete().neq('id', '00000000-0000-0000-0000-000000000000')
       await fetchData()
-    } catch (e) {
-      console.error('Delete all waves error:', e)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const deleteMember = async (memberId: string) => {
+    setLoading(true)
     try {
       await supabase.from('push_subscriptions').delete().eq('member_id', memberId)
       await supabase.from('responses').delete().eq('member_id', memberId)
       await supabase.from('reveals_seen').delete().eq('member_id', memberId)
       await supabase.from('members').delete().eq('id', memberId)
       await fetchData()
-    } catch (e) {
-      console.error('Delete member error:', e)
+    } finally {
+      setLoading(false)
     }
-  }
-
-  const deleteAllMembers = async () => {
-    if (!confirm('Möchtest du wirklich ALLE Mitglieder entfernen? Alle Geräte werden beim nächsten Öffnen/Echtzeit-Update wieder zum Onboarding-Screen zurückgesetzt.')) return
-    setLoading(true)
-    try {
-      await supabase.from('push_subscriptions').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-      await supabase.from('responses').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-      await supabase.from('reveals_seen').delete().neq('member_id', '00000000-0000-0000-0000-000000000000')
-      await supabase.from('members').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-      await fetchData()
-    } catch (e) {
-      console.error('Delete all members error:', e)
-    }
-    setLoading(false)
   }
 
   if (!authed) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-8" style={{ background: '#0a0a0a' }}>
-        <div className="font-display text-4xl mb-12" style={{ color: '#c8a065' }}>∿ Admin</div>
-        <div className="w-full max-w-xs flex flex-col gap-6">
+      <div className="min-h-screen flex flex-col items-center justify-center px-8">
+        <div className="font-display text-4xl mb-10" style={{ color: '#d4a359' }}>
+          ∿ Welle Admin
+        </div>
+        <div className="w-full max-w-xs flex flex-col gap-5">
           <input
             autoFocus
             type="password"
             value={code}
             onChange={e => setCode(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleLogin()}
-            className="border-b py-3 text-lg bg-transparent focus:outline-none"
-            style={{ borderColor: '#1e1e1e', color: '#e8e4de', caretColor: '#c8a065' }}
+            className="px-4 py-3.5 rounded-xl text-base bg-white/5 border border-white/10 focus:outline-none"
+            style={{ color: '#f2efe9' }}
             placeholder="Admin-Code"
           />
-          {codeError && <p className="text-xs" style={{ color: '#c8a065' }}>{codeError}</p>}
+          {codeError && (
+            <p className="text-xs text-center" style={{ color: '#e05a47' }}>
+              {codeError}
+            </p>
+          )}
           <button
             onClick={handleLogin}
-            className="text-sm tracking-[0.2em] uppercase py-3 hover:opacity-70 transition-opacity"
-            style={{ color: '#c8a065' }}
+            className="py-3.5 rounded-xl text-xs tracking-[0.2em] uppercase font-semibold cursor-pointer"
+            style={{ background: '#d4a359', color: '#070709' }}
           >
             Einloggen →
           </button>
@@ -344,343 +208,282 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen px-6 py-12 max-w-2xl mx-auto" style={{ background: '#0a0a0a', color: '#e8e4de' }}>
-      <div className="flex items-center justify-between mb-12">
-        <div className="flex items-center gap-4">
-          <span className="font-display text-3xl" style={{ color: '#c8a065' }}>∿</span>
-          <h1 className="text-lg tracking-[0.2em] uppercase" style={{ color: '#6b6560' }}>Welle Admin</h1>
+    <div className="min-h-screen px-6 py-10 max-w-2xl mx-auto space-y-10">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="font-display text-3xl" style={{ color: '#d4a359' }}>
+            ∿
+          </span>
+          <h1 className="text-sm tracking-[0.25em] uppercase font-medium" style={{ color: '#f2efe9' }}>
+            Welle 2.0 · Regie & Admin
+          </h1>
         </div>
         <div className="flex items-center gap-3">
           {pushStatus && (
-            <span className="text-xs" style={{ color: '#c8a065' }}>
+            <span className="text-xs" style={{ color: '#d4a359' }}>
               {pushStatus}
             </span>
           )}
           <button
             onClick={sendTestPush}
-            className="text-xs tracking-[0.2em] uppercase px-3 py-1.5 border border-[#c8a065]/30 hover:border-[#c8a065] text-[#c8a065] rounded transition-colors"
+            className="text-xs tracking-[0.15em] uppercase px-3.5 py-2 rounded-xl border border-[#d4a359]/40 text-[#d4a359] cursor-pointer"
           >
-            Test-Push ∿
+            Test-Push 🔔
           </button>
         </div>
       </div>
 
-      {/* Members */}
-      <section className="mb-12">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xs tracking-[0.3em] uppercase" style={{ color: '#6b6560' }}>
-            Mitglieder ({members.length})
+      {/* 1-Klick KI-Launcher für alle 8 Formate */}
+      <section className="glass-card rounded-2xl p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs tracking-[0.22em] uppercase font-semibold" style={{ color: '#d4a359' }}>
+            ⚡ Sofort-Welle starten (8 Formate)
           </h2>
-          {members.length > 0 && (
-            <button
-              onClick={deleteAllMembers}
-              disabled={loading}
-              className="text-xs tracking-wider uppercase text-red-400 hover:text-red-300 transition-colors disabled:opacity-40"
-            >
-              Alle entfernen ✕
-            </button>
-          )}
+          <button
+            onClick={() => handleGenerateWithAI()}
+            disabled={loading}
+            className="text-[11px] uppercase tracking-wider px-3 py-1.5 rounded-lg font-semibold cursor-pointer"
+            style={{ background: '#d4a359', color: '#070709' }}
+          >
+            ✨ Auto-Rotation
+          </button>
         </div>
-        <div className="flex flex-col gap-2">
+
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => handleGenerateWithAI('text')}
+            disabled={loading}
+            className="p-3.5 text-left rounded-xl border border-white/10 hover:border-[#d4a359] transition-all cursor-pointer bg-white/[0.02]"
+          >
+            <span className="block font-medium text-sm text-[#f2efe9] mb-0.5">🔒 Blind-Beichte</span>
+            <span className="text-[11px] text-[#7c766e] block">Anonyme Antwort + Autoren-Raten</span>
+          </button>
+
+          <button
+            onClick={() => handleGenerateWithAI('undercover')}
+            disabled={loading}
+            className="p-3.5 text-left rounded-xl border border-[#e05a47]/40 hover:border-[#e05a47] transition-all cursor-pointer bg-[#e05a47]/[0.05]"
+          >
+            <span className="block font-medium text-sm text-[#e05a47] mb-0.5">🕵️ Sabotage (Maulwurf)</span>
+            <span className="text-[11px] text-[#9c958c] block">1 Geheim-Agent + Verhör-Voting</span>
+          </button>
+
+          <button
+            onClick={() => handleGenerateWithAI('spectrum')}
+            disabled={loading}
+            className="p-3.5 text-left rounded-xl border border-white/10 hover:border-[#d4a359] transition-all cursor-pointer bg-white/[0.02]"
+          >
+            <span className="block font-medium text-sm text-[#f2efe9] mb-0.5">🎚️ Frequenz-Spektrum</span>
+            <span className="text-[11px] text-[#7c766e] block">Eigener Puls + Gruppen-Radar Tipp</span>
+          </button>
+
+          <button
+            onClick={() => handleGenerateWithAI('draw')}
+            disabled={loading}
+            className="p-3.5 text-left rounded-xl border border-white/10 hover:border-[#d4a359] transition-all cursor-pointer bg-white/[0.02]"
+          >
+            <span className="block font-medium text-sm text-[#f2efe9] mb-0.5">🎨 35s-Blindfunk</span>
+            <span className="text-[11px] text-[#7c766e] block">35-Sekunden-Skizzensprint</span>
+          </button>
+
+          <button
+            onClick={() => handleGenerateWithAI('photo')}
+            disabled={loading}
+            className="p-3.5 text-left rounded-xl border border-white/10 hover:border-[#d4a359] transition-all cursor-pointer bg-white/[0.02]"
+          >
+            <span className="block font-medium text-sm text-[#f2efe9] mb-0.5">📷 Live-Schnappschuss</span>
+            <span className="text-[11px] text-[#7c766e] block">Direkter Rückkamera-Sucher (600x600)</span>
+          </button>
+
+          <button
+            onClick={() => handleGenerateWithAI('memory')}
+            disabled={loading}
+            className="p-3.5 text-left rounded-xl border border-[#49b882]/40 hover:border-[#49b882] transition-all cursor-pointer bg-[#49b882]/[0.05]"
+          >
+            <span className="block font-medium text-sm text-[#49b882] mb-0.5">🧠 35s-Gedächtnis-Tresor</span>
+            <span className="text-[11px] text-[#9c958c] block">4x4 Code merken · 35s Blind-Sprint</span>
+          </button>
+
+          <button
+            onClick={() => handleGenerateWithAI('logic')}
+            disabled={loading}
+            className="p-3.5 text-left rounded-xl border border-[#49b882]/40 hover:border-[#49b882] transition-all cursor-pointer bg-[#49b882]/[0.05]"
+          >
+            <span className="block font-medium text-sm text-[#49b882] mb-0.5">🧩 35s-Logik-Falle</span>
+            <span className="text-[11px] text-[#9c958c] block">35s Deduktions-Kopfnuss · 1 Versuch</span>
+          </button>
+
+          <button
+            onClick={() => handleGenerateWithAI('scramble')}
+            disabled={loading}
+            className="p-3.5 text-left rounded-xl border border-[#49b882]/40 hover:border-[#49b882] transition-all cursor-pointer bg-[#49b882]/[0.05]"
+          >
+            <span className="block font-medium text-sm text-[#49b882] mb-0.5">⚡ 35s-Kniffel-Sprint</span>
+            <span className="text-[11px] text-[#9c958c] block">Buchstabensalat & 3-Zahlen-Summe im Wechsel</span>
+          </button>
+        </div>
+      </section>
+
+      {/* Manuelle Erstellung */}
+      <section className="glass-card rounded-2xl p-5 space-y-4">
+        <h2 className="text-xs tracking-[0.22em] uppercase" style={{ color: '#7c766e' }}>
+          Eigene Welle schreiben
+        </h2>
+        <div className="flex gap-2 flex-wrap">
+          {(
+            [
+              { id: 'text', label: '🔒 Blind-Beichte' },
+              { id: 'undercover', label: '🕵️ Sabotage' },
+              { id: 'spectrum', label: '🎚️ Spektrum' },
+              { id: 'draw', label: '🎨 35s-Skizze' },
+              { id: 'photo', label: '📷 Live-Foto' },
+              { id: 'memory', label: '🧠 35s-Tresor' },
+              { id: 'logic', label: '🧩 Logik-Falle' },
+              { id: 'scramble', label: '⚡ 35s-Kniffel' },
+            ] as const
+          ).map(t => (
+            <button
+              key={t.id}
+              onClick={() => setNewType(t.id)}
+              className="px-3 py-1.5 rounded-lg text-xs tracking-wider uppercase border transition-all cursor-pointer"
+              style={{
+                borderColor: newType === t.id ? '#d4a359' : 'rgba(255,255,255,0.08)',
+                color: newType === t.id ? '#d4a359' : '#7c766e',
+                background: newType === t.id ? 'rgba(212,163,89,0.1)' : 'transparent',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <textarea
+          value={newPrompt}
+          onChange={e => setNewPrompt(e.target.value)}
+          rows={2}
+          className="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-sm focus:outline-none"
+          placeholder="Frage / Impuls für die Gruppe..."
+        />
+
+        {(newType === 'spectrum' || newType === 'undercover') && (
+          <textarea
+            value={newOptions}
+            onChange={e => setNewOptions(e.target.value)}
+            rows={2}
+            className="w-full bg-black/30 border border-white/10 rounded-xl p-3 text-sm focus:outline-none"
+            placeholder={
+              newType === 'spectrum'
+                ? 'Pol 0% (Zeile 1)\nPol 100% (Zeile 2)'
+                : 'Geheimer Sabotage-Auftrag für den Maulwurf...'
+            }
+          />
+        )}
+
+        <button
+          onClick={handleCreateWave}
+          disabled={loading || !newPrompt.trim()}
+          className="px-5 py-2.5 rounded-xl text-xs uppercase tracking-[0.2em] font-semibold cursor-pointer disabled:opacity-30"
+          style={{ background: '#d4a359', color: '#070709' }}
+        >
+          Manuelle Welle starten →
+        </button>
+      </section>
+
+      {/* Mitglieder */}
+      <section className="glass-card rounded-2xl p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs tracking-[0.22em] uppercase" style={{ color: '#7c766e' }}>
+            Freundeskreis ({members.length})
+          </h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {members.map(m => (
             <div
               key={m.id}
-              className="flex items-center justify-between py-3 px-4 border"
-              style={{ borderColor: '#1e1e1e', background: '#0d0d0d', borderRadius: 2 }}
+              className="flex items-center justify-between py-2.5 px-3.5 rounded-xl border border-white/10 bg-black/20"
             >
-              <span className="text-sm">{m.name}</span>
+              <span className="text-sm font-medium">{m.name}</span>
               <button
                 onClick={() => deleteMember(m.id)}
-                className="text-xs hover:opacity-70"
-                style={{ color: '#6b6560' }}
+                className="text-xs text-red-400/80 hover:text-red-300 cursor-pointer"
               >
                 entfernen
               </button>
             </div>
           ))}
-          {members.length === 0 && (
-            <p className="text-sm" style={{ color: '#3a3a3a' }}>Noch niemand beigetreten.</p>
-          )}
         </div>
       </section>
 
-      {/* 1-Klick Schnelltests */}
-      <section className="mb-10">
-        <h2 className="text-xs tracking-[0.3em] uppercase mb-4" style={{ color: '#c8a065' }}>
-          ⚡ 1-Klick Format-Tests starten
-        </h2>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => handleQuickCreate('spectrum', 'Wo schlägt heute dein inneres Pendel aus?', ['Kühler Verstand', 'Blinde Intuition'])}
-            disabled={loading}
-            className="p-3 text-left border border-[#2a2a2a] hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d]"
-          >
-            <span className="block font-medium text-[#e8e4de] mb-1">⚖️ Spektrum-Welle</span>
-            <span className="text-[#6b6560] block text-[11px]">Verstand vs. Intuition</span>
-          </button>
-          <button
-            onClick={() => handleQuickCreate('photo', 'Ein Blick aus deinem nächsten Fenster – zeig uns den Himmel über deiner Stadt.')}
-            disabled={loading}
-            className="p-3 text-left border border-[#2a2a2a] hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d]"
-          >
-            <span className="block font-medium text-[#e8e4de] mb-1">📷 Foto-Welle</span>
-            <span className="text-[#6b6560] block text-[11px]">Kamera / Fotoupload</span>
-          </button>
-          <button
-            onClick={() => handleQuickCreate('draw', 'Zeichne mit einem Strich ein Symbol, das deinen heutigen Tag einfängt.')}
-            disabled={loading}
-            className="p-3 text-left border border-[#2a2a2a] hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d]"
-          >
-            <span className="block font-medium text-[#e8e4de] mb-1">🎨 Skizzen-Welle</span>
-            <span className="text-[#6b6560] block text-[11px]">Finger-Zeichnung</span>
-          </button>
-          <button
-            onClick={() => handleQuickCreate('silence', 'Nimm dir 20 Sekunden vollkommene Stille. Lass das Rauschen der Welt kurz verblassen.')}
-            disabled={loading}
-            className="p-3 text-left border border-[#2a2a2a] hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d]"
-          >
-            <span className="block font-medium text-[#e8e4de] mb-1">🧘 Stille-Welle</span>
-            <span className="text-[#6b6560] block text-[11px]">20s Atem-Timer</span>
-          </button>
-          <button
-            onClick={() => handleQuickCreate('pulse', 'Kurzer Reset: Schließe die Augen und halte den Kreis für genau 7 Sekunden gedrückt.')}
-            disabled={loading}
-            className="p-3 text-left border border-[#2a2a2a] hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d]"
-          >
-            <span className="block font-medium text-[#e8e4de] mb-1">⏱️ Puls-Welle</span>
-            <span className="text-[#6b6560] block text-[11px]">7s Synchron-Touch</span>
-          </button>
-          <button
-            onClick={handleQuickUndercoverCreate}
-            disabled={loading || members.length === 0}
-            className="p-3 text-left border border-[#c8a065]/40 hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d] disabled:opacity-40"
-          >
-            <span className="block font-medium text-[#c8a065] mb-1">🕵️ Undercover-Anomalie (Chamäleon)</span>
-            <span className="text-[#6b6560] block text-[11px]">1 Mitglied tarnt Gegen-Mission, Gruppe entlarvt es beim Schleier</span>
-          </button>
-          <button
-            onClick={handleQuickEnigmaCreate}
-            disabled={loading}
-            className="p-3 text-left border border-[#c8a065]/40 hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d] disabled:opacity-40"
-          >
-            <span className="block font-medium text-[#c8a065] mb-1">🧩 Enigma-Welle (Fragment-Rätsel)</span>
-            <span className="text-[#6b6560] block text-[11px]">Bruchstücke, die nur kooperativ lösbar sind</span>
-          </button>
-          <button
-            onClick={handleQuickVibeCreate}
-            disabled={loading}
-            className="p-3 text-left border border-[#c8a065]/40 hover:border-[#c8a065] rounded text-xs transition-colors bg-[#0d0d0d] disabled:opacity-40 col-span-2"
-          >
-            <span className="block font-medium text-[#c8a065] mb-1">🎭 Vibe-Check Welle (Bild-Dilemma)</span>
-            <span className="text-[#6b6560] block text-[11px]">KI-Bildkarten (Zen-Faultier vs. Hyperaktive Hummel)</span>
-          </button>
-        </div>
-      </section>
-
-      {/* Create Wave */}
-      <section className="mb-12">
-        <h2 className="text-xs tracking-[0.3em] uppercase mb-4" style={{ color: '#6b6560' }}>
-          Neue Welle (Manuell)
-        </h2>
-        <div className="flex flex-col gap-4 p-5 border" style={{ borderColor: '#1e1e1e', background: '#0d0d0d', borderRadius: 2 }}>
-          <div className="flex gap-2 flex-wrap">
-            {([
-              { id: 'text', label: 'Text' },
-              { id: 'undercover', label: 'Undercover 🕵️' },
-              { id: 'choice', label: 'Auswahl' },
-              { id: 'vibe', label: 'Vibe 🎭' },
-              { id: 'spectrum', label: 'Spektrum ⚖️' },
-              { id: 'photo', label: 'Foto 📷' },
-              { id: 'draw', label: 'Zeichnen 🎨' },
-              { id: 'pulse', label: 'Puls 💓' },
-              { id: 'silence', label: 'Stille 🧘' },
-              { id: 'enigma', label: 'Enigma 🧩' },
-            ] as const).map(t => (
-              <button
-                key={t.id}
-                onClick={() => setNewType(t.id as any)}
-                className="px-3 py-1.5 text-xs tracking-wider uppercase border transition-all"
-                style={{
-                  borderColor: newType === t.id ? '#c8a065' : '#1e1e1e',
-                  color: newType === t.id ? '#c8a065' : '#6b6560',
-                  background: newType === t.id ? 'rgba(200,160,101,0.08)' : 'transparent',
-                  borderRadius: 2,
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          <textarea
-            value={newPrompt}
-            onChange={e => setNewPrompt(e.target.value)}
-            rows={3}
-            className="bg-transparent border-b py-2 resize-none focus:outline-none text-sm"
-            style={{ borderColor: '#1e1e1e', caretColor: '#c8a065' }}
-            placeholder="Frage / Prompt..."
-          />
-
-          {(newType === 'choice' || newType === 'spectrum' || newType === 'vibe' || newType === 'undercover') && (
-            <textarea
-              value={newOptions}
-              onChange={e => setNewOptions(e.target.value)}
-              rows={newType === 'vibe' ? 3 : 2}
-              className="bg-transparent border-b py-2 resize-none focus:outline-none text-sm"
-              style={{ borderColor: '#1e1e1e', caretColor: '#c8a065' }}
-              placeholder={
-                newType === 'spectrum'
-                  ? "Pol A (links)\nPol B (rechts)"
-                  : newType === 'vibe'
-                  ? "Titel A | Bild-Prompt A (optional)\nTitel B | Bild-Prompt B (optional)"
-                  : newType === 'undercover'
-                  ? "Geheime Tarn-Mission für den Undercover-Agenten (optional)"
-                  : "Optionen (eine pro Zeile)"
-              }
-            />
-          )}
-
-          <div className="flex gap-4">
-            <button
-              onClick={handleCreateWave}
-              disabled={loading || !newPrompt.trim()}
-              className="text-sm tracking-[0.2em] uppercase py-2 hover:opacity-70 transition-opacity disabled:opacity-30"
-              style={{ color: '#c8a065' }}
-            >
-              {loading ? '···' : 'Manuell erstellen →'}
-            </button>
-            <button
-              onClick={handleGenerateWithAI}
-              disabled={loading}
-              className="text-sm tracking-[0.2em] uppercase py-2 px-4 border border-[#c8a065] hover:opacity-70 transition-opacity disabled:opacity-30"
-              style={{ color: '#c8a065', background: 'rgba(200,160,101,0.05)' }}
-            >
-              {loading ? '···' : '✨ KI-Welle jetzt auslösen'}
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Waves */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xs tracking-[0.3em] uppercase" style={{ color: '#6b6560' }}>
-            Wellen ({waves.length})
+      {/* Wellen-Liste */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs tracking-[0.22em] uppercase" style={{ color: '#7c766e' }}>
+            Wellen-Historie ({waves.length})
           </h2>
           {waves.length > 0 && (
             <button
               onClick={deleteAllWaves}
               disabled={loading}
-              className="text-xs tracking-[0.2em] uppercase py-1.5 px-3 border border-red-900/50 text-red-400 hover:bg-red-950/40 rounded transition-colors disabled:opacity-30 cursor-pointer"
+              className="text-xs uppercase tracking-wider text-red-400 hover:text-red-300 cursor-pointer"
             >
-              🗑️ Alle Wellen löschen
+              Alle löschen ✕
             </button>
           )}
         </div>
-        <div className="flex flex-col gap-4">
-          {waves.map(w => (
-            <div
-              key={w.id}
-              className="p-5 border"
-              style={{ borderColor: '#1e1e1e', background: '#0d0d0d', borderRadius: 2 }}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <span className="text-xs tracking-[0.2em] uppercase mr-3" style={{ color: '#6b6560' }}>
-                    #{w.number}
-                  </span>
-                  <span
-                    className="text-xs tracking-widest uppercase px-2 py-0.5 border"
-                    style={{
-                      borderColor: w.status === 'active' ? '#c8a065' : '#1e1e1e',
-                      color: w.status === 'active' ? '#c8a065' : '#6b6560',
-                      borderRadius: 1,
-                    }}
-                  >
-                    {w.status}
+
+        <div className="space-y-3">
+          {waves.map(w => {
+            const undercover = w.prompt_type === 'undercover' ? extractUndercover(w.options) : null
+            const echo = extractEcho(w.options)
+            return (
+              <div key={w.id} className="glass-card rounded-2xl p-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-[#d4a359]">#{w.number}</span>
+                    <span className="text-[11px] uppercase tracking-wider px-2 py-0.5 rounded bg-white/5 text-[#9c958c]">
+                      {w.prompt_type}
+                    </span>
+                    <span className="text-[11px] uppercase tracking-wider px-2 py-0.5 rounded border border-white/10">
+                      {w.status}
+                    </span>
+                  </div>
+                  <span className="text-xs text-[#7c766e]">
+                    {w.responseCount}/{members.length} Antworten
                   </span>
                 </div>
-                <span className="text-xs" style={{ color: '#6b6560' }}>
-                  {w.responseCount}/{members.length} Antworten
-                </span>
-              </div>
 
-              <p className="text-sm mb-3 leading-relaxed" style={{ color: '#e8e4de' }}>
-                {w.prompt}
-              </p>
+                <p className="text-sm font-medium text-[#f2efe9]">{w.prompt}</p>
 
-              {w.prompt_type === 'undercover' && extractGlitch(w.options) && (
-                <div className="text-xs text-[#c8a065] mb-3 bg-[#c8a065]/10 border border-[#c8a065]/30 px-2.5 py-1.5 rounded">
-                  🕵️ <strong>Undercover-Agent {extractGlitch(w.options)?.memberName || 'Mitglied'}:</strong> „{extractGlitch(w.options)?.prompt}“
-                </div>
-              )}
-
-              {extractEcho(w.options) && (
-                <div className="text-xs text-[#a09990] italic mb-3 border-l-2 border-[#c8a065] pl-2.5 py-0.5">
-                  🔮 <strong>Orakel-Echo:</strong> „{extractEcho(w.options)}“
-                </div>
-              )}
-
-              {extractEnigma(w.options) && (
-                <div className="text-xs text-[#c8a065] mb-3 bg-[#c8a065]/10 border border-[#c8a065]/30 px-2.5 py-1.5 rounded">
-                  🧩 <strong>Enigma-Lösung:</strong> {extractEnigma(w.options)?.solution} · {extractEnigma(w.options)?.fragments.length} Fragmente
-                </div>
-              )}
-
-              <div className="flex gap-4 flex-wrap">
-                {w.status === 'active' && (
-                  <button
-                    onClick={() => startReveal(w)}
-                    disabled={loading}
-                    className="text-xs tracking-[0.2em] uppercase hover:opacity-70 transition-opacity disabled:opacity-30"
-                    style={{ color: '#c8a065' }}
-                  >
-                    Enthüllen →
-                  </button>
+                {undercover && (
+                  <p className="text-xs text-[#e05a47]">
+                    🕵️ Maulwurf ({undercover.memberName}): „{undercover.prompt}“
+                  </p>
                 )}
-                {w.status === 'reveal' && (
-                  <button
-                    onClick={() => startCooldown(w)}
-                    disabled={loading}
-                    className="text-xs tracking-[0.2em] uppercase hover:opacity-70 transition-opacity disabled:opacity-30"
-                    style={{ color: '#c8a065' }}
-                  >
-                    Cooldown starten →
-                  </button>
-                )}
-                {w.status === 'cooldown' && (
-                  <>
+                {echo && <p className="text-xs italic text-[#9c958c]">∿ „{echo}“</p>}
+
+                <div className="flex gap-4 pt-1 text-xs">
+                  {w.status === 'active' && (
                     <button
-                      onClick={() => endCooldownNow(w)}
-                      disabled={loading}
-                      className="text-xs tracking-[0.2em] uppercase hover:opacity-70 transition-opacity disabled:opacity-30"
-                      style={{ color: '#c8a065' }}
+                      onClick={() =>
+                        updateWaveStatus(w.id, 'reveal', {
+                          revealed_at: new Date().toISOString(),
+                        })
+                      }
+                      className="text-[#d4a359] cursor-pointer"
                     >
-                      Cooldown sofort beenden ⚡
+                      Sofort enthüllen →
                     </button>
-                    <button
-                      onClick={() => activateWave(w)}
-                      disabled={loading}
-                      className="text-xs tracking-[0.2em] uppercase hover:opacity-70 transition-opacity disabled:opacity-30"
-                      style={{ color: '#c8a065' }}
-                    >
-                      Wieder aktiv schalten ↺
-                    </button>
-                  </>
-                )}
-                <button
-                  onClick={() => deleteWave(w.id)}
-                  className="text-xs tracking-[0.2em] uppercase hover:opacity-70 transition-opacity"
-                  style={{ color: '#6b6560' }}
-                >
-                  Löschen
-                </button>
+                  )}
+                  <button
+                    onClick={() => deleteWave(w.id)}
+                    className="text-[#7c766e] hover:text-red-400 cursor-pointer"
+                  >
+                    Löschen
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-          {waves.length === 0 && (
-            <p className="text-sm" style={{ color: '#3a3a3a' }}>Noch keine Wellen.</p>
-          )}
+            )
+          })}
         </div>
       </section>
     </div>

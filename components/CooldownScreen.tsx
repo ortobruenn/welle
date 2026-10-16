@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import type { Wave } from '@/lib/types'
-import PushBell from './PushBell'
+import { extractEcho } from '@/lib/mystery'
+import WaveVisualizer from './WaveVisualizer'
 
 interface Props {
   wave: Wave | null
@@ -10,7 +11,12 @@ interface Props {
   onWaveReady: () => void
 }
 
-function getTimeLeft(nextWaveAt: string | null): { hours: number; minutes: number; seconds: number; total: number } {
+function getTimeLeft(nextWaveAt: string | null): {
+  hours: number
+  minutes: number
+  seconds: number
+  total: number
+} {
   if (!nextWaveAt) return { hours: 0, minutes: 0, seconds: 0, total: 0 }
   const diff = new Date(nextWaveAt).getTime() - Date.now()
   if (diff <= 0) return { hours: 0, minutes: 0, seconds: 0, total: 0 }
@@ -20,89 +26,94 @@ function getTimeLeft(nextWaveAt: string | null): { hours: number; minutes: numbe
   return { hours, minutes, seconds, total: diff }
 }
 
-export default function CooldownScreen({ wave, memberId, onWaveReady }: Props) {
+export default function CooldownScreen({ wave, onWaveReady }: Props) {
   const [timeLeft, setTimeLeft] = useState(() => getTimeLeft(wave?.next_wave_at || null))
+  const [expiredWaveId, setExpiredWaveId] = useState<string | null>(null)
+
+  const isLockedAtZero = Boolean(wave?.id && expiredWaveId === wave.id)
 
   useEffect(() => {
     if (!wave?.next_wave_at) return
 
-    const interval = setInterval(() => {
+    let lastTrigger = 0
+    const tick = () => {
       const tl = getTimeLeft(wave.next_wave_at)
-      setTimeLeft(tl)
-      if (tl.total <= 0) {
-        clearInterval(interval)
-        onWaveReady()
+      if (tl.total <= 0 || (wave.id && expiredWaveId === wave.id)) {
+        if (wave.id && expiredWaveId !== wave.id) {
+          setExpiredWaveId(wave.id)
+        }
+        setTimeLeft({ hours: 0, minutes: 0, seconds: 0, total: 0 })
+        const now = Date.now()
+        if (now - lastTrigger >= 3500) {
+          lastTrigger = now
+          onWaveReady()
+        }
+      } else {
+        setTimeLeft(tl)
       }
-    }, 1000)
+    }
+
+    tick()
+    const interval = setInterval(tick, 250)
     return () => clearInterval(interval)
-  }, [wave?.next_wave_at, onWaveReady])
+  }, [wave?.id, wave?.next_wave_at, expiredWaveId, onWaveReady])
 
   const pad = (n: number) => String(n).padStart(2, '0')
-
-  if (!wave) {
-    return (
-      <div
-        className="min-h-screen flex flex-col items-center justify-center px-8"
-        style={{ background: '#0a0a0a' }}
-      >
-        <div
-          className="font-display text-5xl font-light mb-8 animate-breathe"
-          style={{ color: '#c8a065' }}
-        >
-          ∿
-        </div>
-        <p className="text-sm tracking-[0.25em] uppercase text-center mb-3" style={{ color: '#e8e4de' }}>
-          Die erste Welle sammelt sich
-        </p>
-        <p className="text-xs tracking-[0.25em] uppercase text-center" style={{ color: '#6b6560' }}>
-          Gleich beginnt der erste Impuls...
-        </p>
-      </div>
-    )
-  }
-
-  const isWaiting = !wave.next_wave_at || timeLeft.total > 0
+  const echo = wave ? extractEcho(wave.options) : null
+  const showZeroState = isLockedAtZero || timeLeft.total <= 0
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center px-8 relative"
-      style={{ background: '#0a0a0a' }}
-    >
-      {/* Top Header */}
-      <div className="absolute top-10 left-8 right-8 flex items-center justify-between">
-        <span className="text-xs tracking-[0.3em] uppercase" style={{ color: '#6b6560' }}>
-          Welle {wave.number}
-        </span>
-        <PushBell memberId={memberId} />
+    <div className="flex-1 flex flex-col items-center justify-between px-6 pb-12 pt-6 max-w-xl mx-auto w-full text-center">
+      <div className="w-full">
+        <WaveVisualizer variant="calm" intensity={0.6} height={54} />
       </div>
 
-      {/* Symbol */}
-      <div
-        className="font-display text-5xl font-light mb-16 animate-float"
-        style={{ color: '#c8a065', opacity: 0.5 }}
-      >
-        ∿
-      </div>
+      <div className="my-auto py-8 space-y-8 w-full animate-fade-in">
+        <div className="space-y-3">
+          <span
+            className="text-[10px] uppercase tracking-[0.28em] px-3 py-1 rounded-full inline-block"
+            style={{
+              background: 'rgba(212, 163, 89, 0.1)',
+              color: '#d4a359',
+              border: '1px solid rgba(212, 163, 89, 0.25)',
+            }}
+          >
+            Ruhephase zwischen den Wellen
+          </span>
 
-      <div className="text-center animate-fade-in">
-        <div
-          className={`font-display text-6xl font-light tracking-widest mb-4 transition-all duration-300 ${
-            timeLeft.total <= 0 ? 'text-[#c8a065] animate-pulse scale-105' : 'text-[#e8e4de]'
-          }`}
-        >
-          {pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}
+          <div
+            className={`font-display text-6xl sm:text-7xl font-light tracking-widest transition-all duration-300 ${
+              showZeroState ? 'animate-pulse scale-105' : ''
+            }`}
+            style={{ color: showZeroState ? '#d4a359' : '#f2efe9' }}
+          >
+            {showZeroState
+              ? '00:00:00'
+              : `${pad(timeLeft.hours)}:${pad(timeLeft.minutes)}:${pad(timeLeft.seconds)}`}
+          </div>
+
+          <p
+            className="text-xs tracking-[0.25em] uppercase"
+            style={{ color: showZeroState ? '#d4a359' : '#7c766e' }}
+          >
+            {showZeroState ? 'Neue Welle rollt an...' : 'bis zum nächsten gemeinsamen Impuls'}
+          </p>
         </div>
-        <p className="text-xs tracking-[0.3em] uppercase transition-colors" style={{ color: timeLeft.total <= 0 ? '#c8a065' : '#6b6560' }}>
-          {timeLeft.total <= 0 ? 'Welle öffnet sich...' : 'bis zur nächsten welle'}
-        </p>
+
+        {/* Last Echo Reflection Card */}
+        {echo && (
+          <div className="glass-card rounded-2xl p-5 max-w-md mx-auto space-y-2">
+            <span className="text-[10px] uppercase tracking-[0.2em] block" style={{ color: '#d4a359' }}>
+              Nachklang aus Welle #{wave?.number}
+            </span>
+            <p className="font-display italic text-lg leading-relaxed" style={{ color: '#d8d3cb' }}>
+              „{echo}“
+            </p>
+          </div>
+        )}
       </div>
 
-      <p
-        className="absolute bottom-10 text-xs tracking-[0.3em] uppercase"
-        style={{ color: '#1e1e1e' }}
-      >
-        Welle {wave.number}
-      </p>
+      <div className="h-4" />
     </div>
   )
 }

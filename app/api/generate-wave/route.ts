@@ -7,6 +7,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}))
     const force = !!body?.force
+    const forcedFormat = body?.forcedFormat
     const prepareOnly = !!body?.prepareOnly
     const targetWaveId = body?.waveId
     const nextWaveAt = body?.nextWaveAt
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
       const targetTimeStr = nextWaveAt || prepResult.wave?.next_wave_at
       let autoScheduled = false
 
-      if (targetTimeStr) {
+      if (targetTimeStr && !prepResult.alreadyPrepared) {
         const targetTime = new Date(targetTimeStr).getTime()
         const remainingMs = targetTime - Date.now()
 
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
     // -------------------------------------------------------------
     // MODUS B: DIREKTE AKTIVIERUNG
     // -------------------------------------------------------------
-    const result = await activateWaveInternal(force)
+    const result = await activateWaveInternal(force, forcedFormat)
     return NextResponse.json(result)
   } catch (error: any) {
     console.error('Error in generate-wave POST:', error)

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
+import { serializeSpectrumResponse } from '@/lib/mystery'
 
 interface Props {
   poleA: string
@@ -9,156 +10,210 @@ interface Props {
 }
 
 export default function SpectrumSlider({ poleA, poleB, onComplete }: Props) {
-  const [value, setValue] = useState(50) // 0 bis 100
-  const [isDragging, setIsDragging] = useState(false)
-  const trackRef = useRef<HTMLDivElement | null>(null)
+  const [selfValue, setSelfValue] = useState(50)
+  const [guessAvg, setGuessAvg] = useState(50)
+  const [activeDrag, setActiveDrag] = useState<'self' | 'guess' | null>(null)
+
+  const selfTrackRef = useRef<HTMLDivElement | null>(null)
+  const guessTrackRef = useRef<HTMLDivElement | null>(null)
   const lastHaptic = useRef<number>(50)
 
-  const updateFromPosition = useCallback((clientX: number) => {
-    const track = trackRef.current
-    if (!track) return
-
+  const computePct = useCallback((clientX: number, track: HTMLDivElement | null) => {
+    if (!track) return 50
     const rect = track.getBoundingClientRect()
     const rawRatio = (clientX - rect.left) / rect.width
     const clamped = Math.max(0, Math.min(1, rawRatio))
     const rounded = Math.round(clamped * 100)
-    setValue(rounded)
 
-    // Haptic feedback every 10%
-    if (Math.abs(rounded - lastHaptic.current) >= 10 || (rounded === 50 && lastHaptic.current !== 50)) {
+    if (Math.abs(rounded - lastHaptic.current) >= 10) {
       lastHaptic.current = rounded
-      if (navigator.vibrate) navigator.vibrate(15)
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(12)
     }
+    return rounded
   }, [])
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    setIsDragging(true)
-    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-    updateFromPosition(e.clientX)
-  }
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging) return
-    updateFromPosition(e.clientX)
-  }
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (!isDragging) return
-    setIsDragging(false)
-    ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
-  }
-
   const handleSubmit = () => {
-    if (navigator.vibrate) navigator.vibrate([40, 30, 60])
-    const payload = JSON.stringify({
-      value,
-      poleA,
-      poleB,
-    })
-    onComplete(payload)
-  }
-
-  // Label calculation
-  const getSubLabel = () => {
-    if (value === 50) return 'Exakte Mitte · Ausgeglichen'
-    if (value < 50) {
-      const pct = (50 - value) * 2
-      return `${pct}% Neigung zu „${poleA}“`
-    } else {
-      const pct = (value - 50) * 2
-      return `${pct}% Neigung zu „${poleB}“`
-    }
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([30, 20, 50])
+    onComplete(serializeSpectrumResponse(selfValue, guessAvg, poleA, poleB))
   }
 
   return (
-    <div className="flex flex-col items-center gap-10 w-full select-none max-w-md mx-auto">
-      {/* Dynamic lean indicator */}
-      <div className="h-8 flex items-center justify-center animate-fade-in">
-        <span
-          className="text-xs tracking-[0.2em] uppercase transition-all duration-300"
-          style={{ color: '#c8a065' }}
-        >
-          {getSubLabel()}
-        </span>
-      </div>
-
-      {/* Spectrum Axis */}
-      <div className="w-full flex flex-col gap-5 px-2">
+    <div className="flex flex-col gap-6 w-full select-none max-w-md mx-auto">
+      {/* Pole Cards Header */}
+      <div className="grid grid-cols-2 gap-3">
         <div
-          ref={trackRef}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          className="relative h-14 flex items-center cursor-pointer touch-none"
+          className="p-3.5 rounded-2xl transition-all"
+          style={{
+            background: selfValue < 50 ? 'rgba(212, 163, 89, 0.12)' : 'rgba(255,255,255,0.03)',
+            border:
+              selfValue < 50
+                ? '1px solid rgba(212, 163, 89, 0.4)'
+                : '1px solid rgba(255,255,255,0.07)',
+          }}
         >
-          {/* Background Axis Line */}
-          <div className="w-full h-1 bg-[#1e1e1e] rounded-full relative overflow-hidden">
-            {/* Center tick */}
-            <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-[#3a3a3a] -translate-x-1/2" />
-          </div>
-
-          {/* Active Accent Fill */}
-          <div
-            className="absolute h-1 bg-gradient-to-r from-[#c8a065]/40 to-[#c8a065] rounded-full pointer-events-none transition-all duration-75"
-            style={{
-              left: value <= 50 ? `${value}%` : '50%',
-              width: `${Math.abs(value - 50)}%`,
-            }}
-          />
-
-          {/* Draggable Knob */}
-          <div
-            className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full border-2 border-[#c8a065] bg-[#0a0a0a] flex items-center justify-center transition-transform duration-100 ${
-              isDragging ? 'scale-125 shadow-[0_0_25px_rgba(200,160,101,0.5)]' : 'hover:scale-110 shadow-lg'
-            }`}
-            style={{ left: `${value}%` }}
-          >
-            <div className="w-2.5 h-2.5 rounded-full bg-[#c8a065]" />
-          </div>
+          <span className="text-[10px] uppercase tracking-[0.2em] block mb-1" style={{ color: '#d4a359' }}>
+            Pol 0%
+          </span>
+          <p className="text-xs sm:text-sm font-medium leading-snug" style={{ color: '#f2efe9' }}>
+            {poleA}
+          </p>
         </div>
 
-        {/* Extremity Labels (Clickable to jump) */}
-        <div className="flex justify-between items-center text-xs tracking-wider uppercase text-[#6b6560] font-light">
-          <button
-            type="button"
-            onClick={() => setValue(15)}
-            className={`transition-colors duration-200 max-w-[45%] text-left hover:text-[#c8a065] cursor-pointer ${
-              value < 40 ? 'text-[#e8e4de] font-medium' : ''
-            }`}
-          >
-            ← {poleA}
-          </button>
-          <button
-            type="button"
-            onClick={() => setValue(85)}
-            className={`transition-colors duration-200 max-w-[45%] text-right hover:text-[#c8a065] cursor-pointer ${
-              value > 60 ? 'text-[#e8e4de] font-medium' : ''
-            }`}
-          >
-            {poleB} →
-          </button>
+        <div
+          className="p-3.5 rounded-2xl text-right transition-all"
+          style={{
+            background: selfValue > 50 ? 'rgba(212, 163, 89, 0.12)' : 'rgba(255,255,255,0.03)',
+            border:
+              selfValue > 50
+                ? '1px solid rgba(212, 163, 89, 0.4)'
+                : '1px solid rgba(255,255,255,0.07)',
+          }}
+        >
+          <span className="text-[10px] uppercase tracking-[0.2em] block mb-1" style={{ color: '#d4a359' }}>
+            Pol 100%
+          </span>
+          <p className="text-xs sm:text-sm font-medium leading-snug" style={{ color: '#f2efe9' }}>
+            {poleB}
+          </p>
         </div>
-
-        {/* Native hidden range input for full accessibility */}
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={value}
-          onChange={(e) => setValue(Number(e.target.value))}
-          className="sr-only"
-          aria-label={`${poleA} bis ${poleB}`}
-        />
       </div>
 
-      {/* Confirm Button */}
+      {/* SLIDER 1: DEIN EIGENER PULS */}
+      <div className="glass-card rounded-2xl p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs uppercase tracking-[0.18em] font-medium" style={{ color: '#d4a359' }}>
+            1. Wo stehst du selbst?
+          </span>
+          <span className="font-mono text-sm font-semibold" style={{ color: '#f2efe9' }}>
+            {selfValue}%
+          </span>
+        </div>
+
+        <div
+          ref={selfTrackRef}
+          onPointerDown={e => {
+            setActiveDrag('self')
+            ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+            setSelfValue(computePct(e.clientX, selfTrackRef.current))
+          }}
+          onPointerMove={e => {
+            if (activeDrag === 'self') {
+              setSelfValue(computePct(e.clientX, selfTrackRef.current))
+            }
+          }}
+          onPointerUp={e => {
+            setActiveDrag(null)
+            ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
+          }}
+          className="relative h-12 flex items-center cursor-pointer touch-none"
+        >
+          <div className="w-full h-2 rounded-full relative overflow-hidden" style={{ background: '#1e1e24' }}>
+            <div
+              className="absolute top-0 bottom-0 rounded-full"
+              style={{
+                left: `${Math.min(50, selfValue)}%`,
+                width: `${Math.abs(selfValue - 50)}%`,
+                background: 'linear-gradient(90deg, #d4a359, #f0c987)',
+              }}
+            />
+            <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-white/20 -translate-x-1/2" />
+          </div>
+
+          {/* Thumb */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none"
+            style={{ left: `${selfValue}%` }}
+          >
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center transition-transform"
+              style={{
+                background: '#d4a359',
+                boxShadow: '0 0 18px rgba(212, 163, 89, 0.7)',
+                transform: activeDrag === 'self' ? 'scale(1.2)' : 'scale(1)',
+              }}
+            >
+              <div className="w-2 h-2 rounded-full bg-[#070709]" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* SLIDER 2: GRUPPEN-RADAR TIPP */}
+      <div className="glass-card rounded-2xl p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-xs uppercase tracking-[0.18em] font-medium block" style={{ color: '#49b882' }}>
+              2. Gruppen-Radar (Bonus-Tipp)
+            </span>
+            <span className="text-[11px]" style={{ color: '#7c766e' }}>
+              Wo landet heute der Durchschnitt der ganzen Runde?
+            </span>
+          </div>
+          <span className="font-mono text-sm font-semibold" style={{ color: '#49b882' }}>
+            {guessAvg}%
+          </span>
+        </div>
+
+        <div
+          ref={guessTrackRef}
+          onPointerDown={e => {
+            setActiveDrag('guess')
+            ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+            setGuessAvg(computePct(e.clientX, guessTrackRef.current))
+          }}
+          onPointerMove={e => {
+            if (activeDrag === 'guess') {
+              setGuessAvg(computePct(e.clientX, guessTrackRef.current))
+            }
+          }}
+          onPointerUp={e => {
+            setActiveDrag(null)
+            ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
+          }}
+          className="relative h-12 flex items-center cursor-pointer touch-none"
+        >
+          <div className="w-full h-2 rounded-full relative overflow-hidden" style={{ background: '#1e1e24' }}>
+            <div
+              className="absolute top-0 bottom-0 rounded-full"
+              style={{
+                left: 0,
+                width: `${guessAvg}%`,
+                background: 'linear-gradient(90deg, rgba(73,184,130,0.25), rgba(73,184,130,0.85))',
+              }}
+            />
+            <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-white/20 -translate-x-1/2" />
+          </div>
+
+          {/* Thumb */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none"
+            style={{ left: `${guessAvg}%` }}
+          >
+            <div
+              className="w-6 h-6 rounded-full flex items-center justify-center transition-transform"
+              style={{
+                background: '#49b882',
+                boxShadow: '0 0 16px rgba(73, 184, 130, 0.65)',
+                transform: activeDrag === 'guess' ? 'scale(1.2)' : 'scale(1)',
+              }}
+            >
+              <div className="w-2 h-2 rounded-full bg-[#070709]" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Submit */}
       <button
-        type="button"
         onClick={handleSubmit}
-        className="w-full py-4 text-xs tracking-[0.25em] uppercase border border-[#c8a065] text-[#c8a065] hover:bg-[#c8a065]/10 active:scale-98 transition-all rounded-sm cursor-pointer mt-4"
+        className="w-full py-4 rounded-2xl text-xs uppercase tracking-[0.22em] font-semibold transition-all duration-300 cursor-pointer active:scale-98"
+        style={{
+          background: '#d4a359',
+          color: '#070709',
+          boxShadow: '0 10px 30px -8px rgba(212, 163, 89, 0.5)',
+        }}
       >
-        Position festlegen →
+        Frequenz & Tipp einloggen ∿
       </button>
     </div>
   )

@@ -4,23 +4,33 @@ export interface Member {
   created_at: string
 }
 
-export type WavePromptType = 
-  | 'text' 
-  | 'choice' 
-  | 'draw' 
-  | 'photo' 
-  | 'spectrum' 
-  | 'pulse' 
-  | 'silence' 
-  | 'enigma' 
-  | 'vibe'
+export type CoreWaveType =
+  | 'text'
   | 'undercover'
+  | 'spectrum'
+  | 'draw'
+  | 'photo'
+  | 'memory'
+  | 'logic'
+  | 'scramble'
+
+// Legacy types kept in union for graceful fallback of historic DB waves
+export type WavePromptType =
+  | CoreWaveType
+  | 'choice'
+  | 'pulse'
+  | 'silence'
+  | 'enigma'
+  | 'vibe'
+
+export type WaveFormat = WavePromptType
 
 export interface Wave {
   id: string
   number: number
   prompt: string
   prompt_type: WavePromptType
+  format?: WaveFormat
   options: string[] | null
   status: 'active' | 'reveal' | 'cooldown'
   created_at: string
@@ -32,7 +42,42 @@ export interface WaveResponse {
   id: string
   wave_id: string
   member_id: string
-  content: string // Text, Bild-DataURL, Touch-Metadaten oder Wahl
+  content: string // Text, JSON-Payload (Spectrum / Challenge) oder Bild-DataURL
   created_at: string
   members?: Member
+}
+
+export interface SpectrumResponsePayload {
+  self: number // 0..100
+  guessAvg: number // 0..100 (Schätzung des Gruppenschnitts)
+}
+
+export interface ChallengeResponsePayload {
+  passed: boolean
+  timeMs: number
+  detail: string
+  answer?: string
+  progress?: number
+}
+
+export interface LogicWaveConfig {
+  choices: string[]
+  correctIndex: number
+  explanation: string
+}
+
+export interface ScrambleWaveConfig {
+  mode: 'word' | 'numbers'
+  solutionWord?: string
+  scrambledLetters?: string[]
+  hint?: string
+  targetSum?: number
+  tiles?: number[]
+  solutionIndices?: number[]
+}
+
+export interface WaveReaction {
+  memberId: string
+  memberName: string
+  emoji: string
 }
